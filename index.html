@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Fabio PROP stable 1.0 F1–F6 規則互動練習">
+<title>Fabio F1–F6 練習場</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: a night trading floor you stand inside — a fixed Three.js scene of 40R candles and a volume-profile wall
+   sits behind everything; the page floats over it as glass instrument panels. Single deliberate dark look. */
+:root{
+  --ink:#04060c; --panel:rgba(12,18,32,.72); --panel-2:#22314d; --line:rgba(120,160,255,.16); --line-2:rgba(120,160,255,.32);
+  --bone:#e9effc; --mute:#8390ab; --acc:#4de1ff; --vio:#9a7bff;
+  --bid:#25f0b5; --offer:#ff4d6d; --zone:rgba(37,240,181,.10); --zone-r:rgba(255,77,109,.08);
+  --glow:0 0 24px rgba(77,225,255,.35);
+  --f-num:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-tech:"Chakra Petch","Big Shoulders Display",system-ui,sans-serif;
+  --f-head:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--ink);color:var(--bone);font-family:var(--f-body);font-size:16px;line-height:1.65;overflow-x:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block;pointer-events:none}
+.veil{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(1200px 700px at 50% 0%,rgba(77,225,255,.10),transparent 60%),linear-gradient(180deg,rgba(4,6,12,.15),rgba(4,6,12,.55) 60%,rgba(4,6,12,.75));}
+.scan{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;background:repeating-linear-gradient(0deg,#fff 0 1px,transparent 1px 3px)}
+.cursor{position:fixed;z-index:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(154,123,255,.14),transparent 65%);left:50%;top:30%;transition:opacity .3s}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:110px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--f-tech);font-size:12.5px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:var(--acc)}
+.eyebrow::before{content:"";display:inline-block;width:18px;height:1px;background:currentColor;vertical-align:middle;margin-right:10px;box-shadow:var(--glow)}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0;max-width:64ch}
+.w{color:var(--bid)}.l{color:var(--offer)}.a{color:var(--acc)}
+
+/* glass panel with animated edge + cursor spotlight */
+.glass{position:relative;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);
+  border-radius:14px;box-shadow:0 30px 80px -30px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.06);overflow:hidden}
+.glass::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(77,225,255,.10),transparent 60%);opacity:0;transition:opacity .3s}
+.glass:hover::before{opacity:1}
+.glass::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;pointer-events:none;
+  background:conic-gradient(from var(--ang,0deg),transparent 0 70%,var(--acc) 80%,var(--vio) 88%,transparent 96%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;opacity:.0;transition:opacity .4s}
+.glass:hover::after{opacity:1}
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+@media (prefers-reduced-motion:no-preference){.glass::after{animation:spin 4s linear infinite}@keyframes spin{to{--ang:360deg}}}
+
+/* reveal: rests visible; only transform animates */
+@media (prefers-reduced-motion:no-preference){
+  .rv{transform:translateY(28px) scale(.985);transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+  .rv.in{transform:none}
+}
+
+/* ripple + press feedback */
+.fx{position:relative;overflow:hidden;transition:transform .12s ease,box-shadow .25s ease,border-color .25s,background .25s}
+.fx:active{transform:scale(.96)}
+.ripple{position:absolute;border-radius:50%;pointer-events:none;transform:scale(0);background:radial-gradient(circle,rgba(77,225,255,.55),rgba(154,123,255,.25) 50%,transparent 70%);animation:rip .65s ease-out forwards}
+@keyframes rip{to{transform:scale(1);opacity:0}}
+.flash{animation:flash .5s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 0 rgba(77,225,255,.7)}100%{box-shadow:0 0 0 18px rgba(77,225,255,0)}}
+
+/* ticker */
+.ticker{position:relative;z-index:1;margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;
+  font-family:var(--f-mono);font-size:12px;color:var(--acc);padding-block:10px;background:rgba(4,6,12,.6);backdrop-filter:blur(8px);text-shadow:0 0 10px rgba(77,225,255,.5)}
+.ticker span{display:inline-block;padding-right:40px}
+@media (prefers-reduced-motion:no-preference){.ticker .t{display:inline-block;animation:tick 70s linear infinite}@keyframes tick{to{transform:translateX(-50%)}}}
+
+/* hero */
+.hero{display:flex;flex-direction:column;gap:30px;padding-top:12vh}
+.hero h1{font-family:var(--f-head);font-weight:900;font-size:clamp(34px,6.2vw,78px);line-height:1.08;letter-spacing:.01em;text-shadow:0 10px 40px rgba(0,0,0,.6)}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--vio),var(--acc));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent}
+@media (prefers-reduced-motion:no-preference){.hero h1 em{animation:sheen 4s linear infinite}@keyframes sheen{to{background-position:-200% 0}}}
+.score{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding:26px 28px}
+@media (max-width:760px){.score{grid-template-columns:minmax(0,1fr)}}
+.bigR{font-family:var(--f-num);font-weight:900;font-size:clamp(96px,19vw,240px);line-height:.82;letter-spacing:-.01em;font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,#fff 10%,var(--acc) 70%,var(--vio));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 30px rgba(77,225,255,.35))}
+.bigR small{font-size:.32em;font-weight:600;letter-spacing:.04em;margin-left:.2em}
+.stats{display:grid;grid-template-columns:repeat(3,auto);gap:4px 28px;font-family:var(--f-num);font-weight:800;font-size:38px;line-height:1}
+.stats span{font-family:var(--f-tech);font-size:11px;letter-spacing:.18em;color:var(--mute);font-weight:500;display:block;margin-top:6px}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ft{border:1px solid var(--line-2);background:rgba(12,18,32,.6);border-radius:8px;padding:9px 13px;display:inline-flex;gap:8px;align-items:baseline;backdrop-filter:blur(6px)}
+.ft:hover{border-color:var(--acc);box-shadow:var(--glow)}
+.ft b{font-family:var(--f-num);font-size:20px;font-weight:800;letter-spacing:.04em}
+.ft small{font-size:13px;color:var(--mute)}
+.ft[aria-pressed="true"]{background:linear-gradient(135deg,rgba(77,225,255,.22),rgba(154,123,255,.22));border-color:var(--acc);box-shadow:var(--glow),inset 0 0 20px rgba(77,225,255,.15)}
+.ft[aria-pressed="true"] small{color:var(--bone)}
+.play{border:0;background:linear-gradient(135deg,var(--acc),var(--vio));color:#04060c;font-family:var(--f-tech);font-weight:700;letter-spacing:.06em;padding:11px 20px;border-radius:8px;box-shadow:0 0 30px rgba(77,225,255,.4)}
+.play:hover{box-shadow:0 0 44px rgba(154,123,255,.6)}
+.ghost{border:1px solid var(--line-2);background:transparent;padding:10px 14px;border-radius:8px;color:var(--mute)}
+.ghost:hover{color:var(--bone);border-color:var(--bone)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:7px;perspective:900px}
+.chip{position:relative;height:48px;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:var(--f-mono);font-size:12px;line-height:1.2;
+  transition:opacity .5s,transform .6s cubic-bezier(.2,.8,.2,1),background .4s,box-shadow .3s;transform-style:preserve-3d}
+.chip:hover{transform:translateZ(18px) scale(1.06)}
+.chip.win{background:rgba(37,240,181,.12);border-color:rgba(37,240,181,.45);box-shadow:inset 0 0 14px rgba(37,240,181,.12)}
+.chip.loss{background:rgba(255,77,109,.11);border-color:rgba(255,77,109,.42);box-shadow:inset 0 0 14px rgba(255,77,109,.1)}
+.chip i{font-style:normal;font-size:10px;color:var(--mute)}
+.chip.out{opacity:.22;transform:rotateX(70deg) translateY(10px);background:transparent;box-shadow:none}
+.chip.out::after{content:attr(data-by);position:absolute;inset:auto 0 2px;text-align:center;font-size:10px;color:var(--acc);transform:rotateX(-70deg)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:13px;color:var(--mute)}
+.legend i{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:2px}
+
+/* level map */
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;perspective:1000px}
+.lv{padding:18px;display:flex;flex-direction:column;gap:8px;min-width:0;text-decoration:none;color:inherit;transform-style:preserve-3d;transition:transform .2s ease,border-color .3s,box-shadow .3s}
+.lv:hover{border-color:var(--acc);box-shadow:0 20px 60px -20px rgba(77,225,255,.45)}
+.lv .id{font-family:var(--f-num);font-weight:900;font-size:46px;line-height:1;transform:translateZ(30px)}
+.lv h3{font-family:var(--f-head);font-size:16px;line-height:1.35;transform:translateZ(20px)}
+.lv .hit{font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.lv .st{font-family:var(--f-tech);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.lv.clear .st{color:var(--bid);text-shadow:0 0 10px rgba(37,240,181,.6)}
+.lv.clear .id{color:var(--acc);text-shadow:var(--glow)}
+.order{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--f-mono);font-size:13px;color:var(--mute)}
+.order b{color:var(--bone);font-weight:600;border:1px solid var(--line-2);background:rgba(12,18,32,.7);padding:2px 9px;border-radius:5px}
+
+/* level */
+.level{display:flex;flex-direction:column;gap:24px;scroll-margin-top:16px}
+.lvhead{display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:end}
+@media (max-width:640px){.lvhead{grid-template-columns:minmax(0,1fr)}}
+.lvhead .id{font-family:var(--f-num);font-weight:900;font-size:clamp(110px,16vw,200px);line-height:.8;color:transparent;-webkit-text-stroke:2px var(--acc);
+  background:linear-gradient(180deg,rgba(77,225,255,.35),transparent 80%);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 22px rgba(77,225,255,.35))}
+.lvhead h2{font-family:var(--f-head);font-weight:900;font-size:clamp(28px,4.2vw,50px);line-height:1.12}
+.lvhead .txt{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lvhead .txt p{color:#c2cbe0}
+.game{display:grid;grid-template-columns:minmax(0,1fr) 340px;transition:box-shadow .4s}
+@media (max-width:900px){.game{grid-template-columns:minmax(0,1fr)}}
+.game.win{animation:winpulse 1.1s ease-out}
+@keyframes winpulse{0%{box-shadow:0 0 0 0 rgba(37,240,181,.7)}100%{box-shadow:0 0 0 30px rgba(37,240,181,0)}}
+.game.hit{animation:shake .45s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
+.chartbox{position:relative;min-width:0;border-right:1px solid var(--line)}
+@media (max-width:900px){.chartbox{border-right:0;border-bottom:1px solid var(--line)}}
+.chartbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.chartbar span:first-child::before{content:"● ";color:var(--bid);text-shadow:0 0 8px var(--bid)}
+@media (prefers-reduced-motion:no-preference){.chartbar span:first-child::before{animation:blink 1.4s steps(2) infinite}@keyframes blink{50%{opacity:.2}}}
+.hud{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);min-height:20px}
+.hud:empty{display:none}
+.pill{display:inline-flex;gap:8px;align-items:center;font-size:13px;border:1px solid var(--line-2);padding:3px 11px;border-radius:999px;background:rgba(4,6,12,.5)}
+.pill b{font-family:var(--f-mono);font-weight:600}
+.pill.bad{border-color:rgba(255,77,109,.6);background:rgba(255,77,109,.1);box-shadow:0 0 14px rgba(255,77,109,.25)}
+.pill.good{border-color:rgba(37,240,181,.6);background:rgba(37,240,181,.1)}
+.meter{display:inline-flex;gap:3px}
+.meter i{width:16px;height:8px;background:var(--line-2);border-radius:2px}
+.meter i.on{background:var(--offer);box-shadow:0 0 8px var(--offer)}
+canvas.chart{display:block;width:100%;height:440px}
+@media (max-width:600px){canvas.chart{height:340px}}
+.stamp{position:absolute;right:18px;top:96px;font-family:var(--f-num);font-weight:900;font-size:64px;line-height:1;padding:4px 16px;border:3px solid currentColor;border-radius:8px;
+  transform:rotate(-6deg) scale(2.2);opacity:0;pointer-events:none;background:rgba(4,6,12,.75);box-shadow:0 0 40px currentColor;text-shadow:0 0 20px currentColor}
+.stamp.show{opacity:1;transform:rotate(-6deg) scale(1);transition:transform .35s cubic-bezier(.2,1.6,.4,1),opacity .2s}
+.side{display:flex;flex-direction:column;gap:16px;padding:20px;min-width:0}
+.stepno{font-family:var(--f-tech);font-size:12px;font-weight:600;letter-spacing:.2em;color:var(--acc)}
+.say{font-size:16.5px;line-height:1.7}
+.say b{color:var(--acc);font-weight:700}
+.choices{display:flex;flex-direction:column;gap:8px}
+.choice{text-align:left;border:1px solid var(--line-2);background:rgba(4,6,12,.55);padding:12px 14px;border-radius:10px;display:flex;flex-direction:column;gap:2px}
+.choice:hover{border-color:var(--acc);box-shadow:var(--glow);transform:translateX(4px)}
+.choice small{color:var(--mute);font-size:13px}
+.choice.primary{background:linear-gradient(135deg,rgba(77,225,255,.25),rgba(154,123,255,.25));border-color:var(--acc)}
+.choice.primary small{color:#c2cbe0}
+.result{border-left:3px solid var(--acc);padding:4px 0 4px 14px;display:flex;flex-direction:column;gap:6px}
+.result .r{font-family:var(--f-num);font-weight:900;font-size:48px;line-height:1;text-shadow:0 0 24px currentColor}
+.clearmsg{color:var(--acc);font-size:15px}
+.progress{display:flex;gap:6px;margin-top:auto}
+.progress span{flex:1;height:4px;background:var(--line-2);border-radius:2px;transition:background .4s,box-shadow .4s}
+.progress span.done{background:linear-gradient(90deg,var(--acc),var(--vio));box-shadow:var(--glow)}
+.paths{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.paths .ok{color:var(--bid);text-shadow:0 0 8px var(--bid)}
+
+/* rule card */
+.rule{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:32px;padding:26px}
+@media (max-width:860px){.rule{grid-template-columns:minmax(0,1fr)}}
+.rule .col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.rule h3{font-family:var(--f-tech);font-weight:600;font-size:15px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.quote{font-family:var(--f-head);font-size:clamp(20px,2.4vw,27px);line-height:1.5;font-weight:900}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:520px){.pair{grid-template-columns:minmax(0,1fr)}}
+.pair div{background:rgba(4,6,12,.5);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.pair div:first-child{border-color:rgba(255,77,109,.35)}.pair div:last-child{border-color:rgba(37,240,181,.35)}
+.pair .tag{font-family:var(--f-tech);font-size:11px;font-weight:600;letter-spacing:.16em}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:120px minmax(0,1fr) 84px;gap:10px;align-items:center;font-size:14px}
+.bar .track{height:12px;display:flex;background:var(--line);border-radius:6px;overflow:hidden}
+.bar .track i{display:block;height:100%;transform-origin:left;transform:scaleX(var(--s,1));transition:transform 1.2s cubic-bezier(.2,.8,.2,1)}
+.bar .n{font-family:var(--f-mono);font-size:12px;color:var(--mute);text-align:right}
+.hits{display:flex;flex-wrap:wrap;gap:4px}
+.hits span{font-family:var(--f-mono);font-size:12px;padding:1px 7px;border:1px solid;border-radius:4px;background:rgba(4,6,12,.5)}
+.note{font-size:13.5px;color:var(--mute)}
+.warn{font-size:13.5px;border-left:3px solid var(--vio);padding-left:12px;color:#c9c1ff}
+.limits{padding:20px;display:flex;flex-direction:column;gap:8px}
+.limits ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:14px}
+footer{position:relative;z-index:1;font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:18px}
+
+/* checklist exam */
+.exam{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}
+@media (max-width:900px){.exam{grid-template-columns:minmax(0,1fr)}}
+.ticket{padding:24px;border-right:1px dashed var(--line-2);display:flex;flex-direction:column;gap:14px;min-width:0}
+@media (max-width:900px){.ticket{border-right:0;border-bottom:1px dashed var(--line-2)}}
+.ticket .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.dir{font-family:var(--f-num);font-weight:900;font-size:80px;line-height:.9;letter-spacing:.02em;text-shadow:0 0 30px currentColor}
+@media (prefers-reduced-motion:no-preference){.dir{animation:dropin .5s cubic-bezier(.2,1.4,.4,1)}@keyframes dropin{from{transform:translateY(-14px) scale(1.15);filter:blur(4px)}}}
+.fields{display:flex;flex-direction:column}
+.fields div{display:grid;grid-template-columns:84px minmax(0,1fr);gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:15px}
+.fields span{font-size:12.5px;color:var(--mute);padding-top:2px}
+.checks{padding:24px;display:flex;flex-direction:column;gap:0;min-width:0}
+.q{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line);transition:opacity .3s,background .3s}
+.q:first-child{border-top:0}
+.q .rid{font-family:var(--f-num);font-weight:900;font-size:26px;line-height:1;color:var(--mute)}
+.q.now{background:linear-gradient(90deg,rgba(77,225,255,.08),transparent)}
+.q.now .rid{color:var(--acc);text-shadow:var(--glow)}
+.q.later{opacity:.35}
+.q .txt{font-size:15px;line-height:1.45}
+.q .txt small{display:block;font-size:12.5px;color:var(--mute);margin-top:2px}
+.yn{display:flex;gap:6px}
+.yn button{border:1px solid var(--line-2);background:rgba(4,6,12,.6);padding:7px 15px;border-radius:8px;font-weight:600}
+.yn button:hover{border-color:var(--acc);box-shadow:var(--glow)}
+.ans{font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+.verdict{border-top:1px solid var(--acc);margin-top:6px;padding-top:16px;display:flex;flex-direction:column;gap:12px}
+.verdict .big{font-family:var(--f-head);font-weight:900;font-size:28px}
+.tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:640px){.tally{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tally div{padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.tally b{font-family:var(--f-num);font-weight:900;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.tally span{font-family:var(--f-tech);font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--mute)}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dots i{width:24px;height:6px;background:var(--line-2);border-radius:3px;transition:background .3s}
+.dots i.ok{background:var(--bid);box-shadow:0 0 8px var(--bid)}.dots i.bad{background:var(--offer);box-shadow:0 0 8px var(--offer)}.dots i.cur{background:var(--acc);box-shadow:var(--glow)}
+.log{display:flex;flex-direction:column}
+.log div{display:grid;grid-template-columns:60px 70px minmax(0,1fr) 60px;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14px;align-items:baseline}
+.log .mono{font-size:13px}
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-hidden="true"></canvas><div class="veil" aria-hidden="true"></div><div class="scan" aria-hidden="true"></div><div class="cursor" id="cursorGlow" aria-hidden="true"></div>
+<div class="wrap">
+  <div class="ticker" aria-hidden="true"><span class="t" id="tick"></span></div>
+
+  <!-- ============ HERO: the sieve ============ -->
+  <section class="hero" aria-labelledby="h1">
+    <span class="eyebrow">Fabio PROP · 規則 stable 1.0 · 53 筆實單</span>
+    <h1 id="h1">照單全收，53 筆差唔多打和。<br>避開 <em>6 種情況</em>，剩低 24 筆。</h1>
+    <div class="score glass rv">
+      <div class="bigR mono" aria-live="polite"><span id="netR">+1</span><small>R</small></div>
+      <div class="stats">
+        <div><b id="sKept">53</b><span>做咗</span></div>
+        <div class="w"><b id="sW">27</b><span>贏</span></div>
+        <div class="l"><b id="sL">26</b><span>輸</span></div>
+      </div>
+    </div>
+    <div class="filters" role="group" aria-label="開關規則">
+      <button class="play fx" id="playAll" type="button">▶ 逐條開</button>
+      <span id="ftWrap" style="display:contents"></span>
+      <button class="ghost fx" id="reset" type="button">重設</button>
+    </div>
+    <div class="grid" id="grid" aria-label="53 筆單，綠係贏，紅係輸"></div>
+    <div class="legend">
+      <span><i style="background:var(--bid)"></i>贏 +1R</span>
+      <span><i style="background:var(--offer)"></i>輸 −1R</span>
+      <span><i style="border:1px solid var(--acc)"></i>灰咗 = 被規則擋走（算 0R）</span>
+      <span>計法：用 Fabio 原本嘅止賺／止蝕，邊個先掂到。</span>
+    </div>
+  </section>
+
+  <!-- ============ LEVEL MAP ============ -->
+  <section class="level" aria-labelledby="h-map">
+    <span class="eyebrow">關卡 · <span id="clearCount">0</span> / 6 過關</span>
+    <h2 id="h-map" style="font-family:var(--f-head);font-size:clamp(26px,3.6vw,40px)">一條規則一關。入場前由上到下問一次，任何一條答「係」就唔做。</h2>
+    <div class="map" id="map"></div>
+    <div class="order"><span>實戰次序：</span><b>F2</b>→<b>F3</b>→<b>F5</b>→<b>F1</b>→<b>F4</b>→<b>F6</b><span>→ 全部「唔係」先入場</span></div>
+  </section>
+
+  <div id="levels" style="display:contents"></div>
+
+  <!-- ============ FINAL: checklist exam ============ -->
+  <section class="level" id="exam" aria-labelledby="h-exam">
+    <div class="lvhead"><div class="id">✓</div>
+      <div class="txt"><span class="eyebrow">最後一關 · 10 筆隨機真實單</span><h2 id="h-exam">Checklist 實戰</h2>
+        <p>由 Fabio 嘅 53 筆實單隨機抽 10 筆，只俾你睇入場前知道嘅嘢。跟 F2 → F3 → F5 → F1 → F4 → F6 逐條答，任何一條答「係」就唔做。做咗嘅單計 Fabio 實際結果，唔做算 0R。</p></div></div>
+    <div class="tally" aria-live="polite">
+      <div class="glass"><b id="tYou">0</b><span>你嘅 R</span></div>
+      <div class="glass"><b id="tRule">0</b><span>跟規則嘅 R</span></div>
+      <div class="glass"><b id="tAll">0</b><span>照單全收嘅 R</span></div>
+      <div class="glass"><b id="tOk">0/0</b><span>判斷啱</span></div>
+    </div>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+    <div class="exam glass rv">
+      <div class="ticket" id="ticket"></div>
+      <div class="checks" id="checks" aria-live="polite"></div>
+    </div>
+    <p class="note">呢 53 筆係用嚟寫規則嘅樣本，所以跟規則做喺度一定好靚。真實新單未必咁理想。</p>
+  </section>
+
+  <section class="limits glass" aria-labelledby="h-lim">
+    <h3 id="h-lim" style="font-family:var(--f-head)">玩之前要知</h3>
+    <ul>
+      <li>規則唔會將輸單變贏單，只係唔做：擋走 29 筆，入面 25 輸、4 贏。</li>
+      <li>只有 F1、F2 做過前後兩段測試（前 35 筆搵規則，後 18 筆測試）。F3 至 F6 係貼合呢 53 筆寫出嚟，每條只有 1 至 2 筆證據，未喺新單測過。</li>
+      <li>仲有 1 筆輸單（#105，VA 再翻向後 long）分唔開。</li>
+      <li>標籤係 AI 讀 Fabio 講解之後貼嘅第一版。圖表行情全部係模擬，用嚟示範規則，唔係任何一日嘅真實價位。</li>
+    </ul>
+  </section>
+
+  <footer>資料：prop_backtest · reports/fabio_r_rules_stable_1.0_20261021。只作學習整理，唔係投資建議。</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------------- page effects: cursor light, ripples, tilt, reveal ---------------- */
+(()=>{
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const glow=()=>document.getElementById('cursorGlow');
+addEventListener('pointermove',e=>{
+  const g=glow();if(g){g.style.left=e.clientX+'px';g.style.top=e.clientY+'px';}
+  const el=e.target.closest&&e.target.closest('.glass');
+  if(el){const r=el.getBoundingClientRect();el.style.setProperty('--mx',(e.clientX-r.left)+'px');el.style.setProperty('--my',(e.clientY-r.top)+'px');}
+  const t=e.target.closest&&e.target.closest('.tilt');
+  document.querySelectorAll('.tilt.tilting').forEach(x=>{if(x!==t){x.classList.remove('tilting');x.style.transform='';}});
+  if(t&&!reduce){const r=t.getBoundingClientRect(),px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+    t.classList.add('tilting');t.style.transform=`rotateY(${px*16}deg) rotateX(${-py*16}deg) translateZ(12px)`;}
+},{passive:true});
+addEventListener('pointerdown',e=>{
+  const b=e.target.closest&&e.target.closest('.fx');if(!b)return;
+  const r=b.getBoundingClientRect(),d=Math.max(r.width,r.height)*2.2,s=document.createElement('span');
+  s.className='ripple';s.style.cssText=`width:${d}px;height:${d}px;left:${e.clientX-r.left-d/2}px;top:${e.clientY-r.top-d/2}px`;
+  b.appendChild(s);setTimeout(()=>s.remove(),700);
+  b.classList.remove('flash');void b.offsetWidth;b.classList.add('flash');
+});
+if('IntersectionObserver' in window){
+  const io=new IntersectionObserver(es=>es.forEach(en=>{if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}}),{threshold:.08});
+  addEventListener('load',()=>document.querySelectorAll('.rv:not(.in)').forEach(el=>io.observe(el)));
+}else addEventListener('load',()=>document.querySelectorAll('.rv').forEach(el=>el.classList.add('in')));
+})();
+
+/* ---------------- 3D trading floor (Three.js) ---------------- */
+(()=>{
+if(!window.THREE)return;
+const cv=document.getElementById('scene');if(!cv)return;
+let renderer;try{renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});}catch(e){return;}
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75));
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x04060c);scene.fog=new THREE.FogExp2(0x04060c,0.013);
+const cam=new THREE.PerspectiveCamera(55,1,0.1,900);
+
+// seeded 40R walk
+let seed=40;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646;};
+const N=150,SP=2.6,bars=[];let p=0;
+for(let i=0;i<N;i++){const drift=Math.sin(i/14)*.32+Math.sin(i/37)*.2;const d=rnd()<.5+drift?1:-1,pull=rnd()*4,o=p;let h,l,c;
+  if(d>0){l=o-pull;h=l+10;c=h;}else{h=o+pull;l=h-10;c=l;}p=c;bars.push({o,h,l,c,d,vc:(h+l)/2+(rnd()-.5)*3});}
+const lo=Math.min(...bars.map(b=>b.l)),hi=Math.max(...bars.map(b=>b.h)),K=46/(hi-lo),Y=v=>(v-lo)*K+1;
+const X=i=>(i-N/2)*SP,Z=i=>Math.sin(i*.06)*5;
+
+const mUp=new THREE.MeshStandardMaterial({color:0x25f0b5,emissive:0x25f0b5,emissiveIntensity:.55,metalness:.4,roughness:.35});
+const mDn=new THREE.MeshStandardMaterial({color:0xff4d6d,emissive:0xff4d6d,emissiveIntensity:.5,metalness:.4,roughness:.35});
+const gBox=new THREE.BoxGeometry(1,1,1),gEdge=new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1));
+const mVA=new THREE.LineBasicMaterial({color:0x8fb0ff,transparent:true,opacity:.32});
+const candles=[];
+bars.forEach((b,i)=>{const g=new THREE.Group(),m=b.d>0?mUp:mDn;
+  const body=new THREE.Mesh(gBox,m);body.scale.set(1.15,Math.max(.12,Math.abs(b.c-b.o)*K),1.15);body.position.y=Y((b.o+b.c)/2);
+  const wick=new THREE.Mesh(gBox,m);wick.scale.set(.14,(b.h-b.l)*K,.14);wick.position.y=Y((b.h+b.l)/2);
+  const va=new THREE.LineSegments(gEdge,mVA);va.scale.set(2,6.5*K,2);va.position.y=Y(b.vc);
+  g.add(body,wick,va);g.position.set(X(i),0,Z(i));g.scale.y=.001;g.userData.t=0;scene.add(g);candles.push(g);});
+
+// volume-profile wall behind the path
+const bins={};bars.forEach(b=>{for(let v=Math.ceil(b.l);v<=b.h;v+=2){const k=Math.round(v/2)*2;bins[k]=(bins[k]||0)+1+2*Math.exp(-Math.pow(v-b.vc,2)/6);}});
+const mx=Math.max(...Object.values(bins));
+const mProf=new THREE.MeshBasicMaterial({color:0x9a7bff,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false});
+const mPoc=new THREE.MeshBasicMaterial({color:0x4de1ff,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false});
+const prof=new THREE.Group();
+for(const k in bins){const len=bins[k]/mx*90;const bar=new THREE.Mesh(gBox,bins[k]===mx?mPoc:mProf);bar.scale.set(len,2*K*.8,1);bar.position.set(-200+len/2,Y(+k),-42);prof.add(bar);}
+scene.add(prof);
+const prof2=prof.clone();prof2.position.x=230;prof2.scale.x=-1;scene.add(prof2);
+
+// floor + horizon
+const grid=new THREE.GridHelper(900,180,0x2c4f99,0x0e1a35);grid.position.y=-1;grid.material.transparent=true;grid.material.opacity=.6;scene.add(grid);
+const ring=new THREE.Mesh(new THREE.TorusGeometry(70,.18,8,160),new THREE.MeshBasicMaterial({color:0x4de1ff,transparent:true,opacity:.35}));
+ring.rotation.x=Math.PI/2;ring.position.set(0,-.8,0);scene.add(ring);
+
+// particles
+const PN=1800,pos=new Float32Array(PN*3);for(let i=0;i<PN;i++){pos[i*3]=(rnd()-.5)*460;pos[i*3+1]=rnd()*90;pos[i*3+2]=-rnd()*170-4;}
+const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0x4de1ff,size:.45,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));scene.add(pts);
+
+scene.add(new THREE.AmbientLight(0x7080b0,.55));
+const L1=new THREE.PointLight(0x4de1ff,2.2,220),L2=new THREE.PointLight(0x9a7bff,2,220);scene.add(L1,L2);
+
+function size(){renderer.setSize(innerWidth,innerHeight,false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();}
+addEventListener('resize',size);size();
+let mxp=0,myp=0;addEventListener('pointermove',e=>{mxp=e.clientX/innerWidth-.5;myp=e.clientY/innerHeight-.5;},{passive:true});
+const yAt=x=>{const i=Math.max(0,Math.min(N-1,Math.round(x/SP+N/2)));const b=bars[i];return Y((b.h+b.l)/2);};
+let cx=X(6),cy=yAt(X(6)),t0=performance.now(),running=true;
+document.addEventListener('visibilitychange',()=>{running=!document.hidden;if(running)requestAnimationFrame(loop);});
+function loop(now){
+  if(!running)return;
+  const t=(now-t0)/1000,max=Math.max(1,document.documentElement.scrollHeight-innerHeight),sp=Math.min(1,scrollY/max);
+  const tx=X(6)+(X(N-14)-X(6))*sp;cx+=(tx-cx)*.06;cy+=(yAt(cx+14)-cy)*.04;
+  cam.position.set(cx+mxp*10,cy+12-myp*6,32+Math.sin(t*.3)*(reduce?0:1.5));
+  cam.lookAt(cx+16,cy+2,0);
+  L1.position.set(cx+10,cy+30,24);L2.position.set(cx-30,cy+20,-20);ring.position.x=cx+16;
+  candles.forEach((g,i)=>{if(g.userData.t<1&&Math.abs(X(i)-cx)<90){g.userData.t=Math.min(1,g.userData.t+(reduce?1:.045));}
+    const k=g.userData.t;g.scale.y=k<=0?.001:1-Math.pow(1-k,3);});
+  if(!reduce){pts.rotation.y=t*.012;pts.position.y=Math.sin(t*.4)*.8;}
+  renderer.render(scene,cam);requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+
+</script>
+<script>
+(()=>{
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const sleep = ms => new Promise(r=>setTimeout(r,reduce?0:ms));
+const fmtP = v => (Math.round(v*100)/100).toLocaleString('en-US',{maximumFractionDigits:2});
+
+/* ---------------- data: 53 trades [ordinal, R, skipped_by, split, zone, dir] ---------------- */
+const T=[[53,1,"","IS","va_flip","l"],[54,1,"","IS","break_test","l"],[58,1,"","IS","va_flip","s"],[59,-1,"F1","IS","absorption","s"],[60,-1,"F1","IS","absorption","s"],[61,-1,"F3","IS","va_flip","s"],[63,1,"","IS","momentum","l"],[65,1,"","IS","momentum","l"],[66,1,"","IS","absorption","l"],[67,-1,"F1","IS","absorption","l"],[68,1,"","IS","absorption","l"],[69,1,"","IS","momentum","l"],[70,-1,"F3","IS","momentum","l"],[72,-1,"F1","IS","absorption","s"],[74,1,"F1","IS","absorption","l"],[75,1,"","IS","momentum","l"],[76,1,"","IS","reload","l"],[80,1,"","IS","va_flip","s"],[21,1,"","IS","reload","s"],[22,-1,"F1","IS","absorption","s"],[25,1,"","IS","va_flip","s"],[27,1,"","IS","break_test","l"],[28,1,"","IS","reload","l"],[35,-1,"F1","IS","absorption","l"],[39,-1,"F6","IS","break_test","l"],[42,-1,"F5","IS","break_test","l"],[43,1,"","IS","momentum","l"],[46,-1,"F1","IS","absorption","s"],[47,1,"","IS","reload","s"],[50,-1,"F5","IS","break_test","l"],[82,-1,"F1","IS","absorption","s"],[86,-1,"F1","IS","absorption","s"],[89,1,"F2","IS","break_test","l"],[90,-1,"F2","IS","break_test","l"],[92,-1,"F2","IS","break_test","l"],[95,-1,"F4","OOS","momentum","s"],[96,-1,"F1","OOS","absorption","s"],[99,-1,"F2","OOS","break_test","s"],[104,1,"","OOS","break_test","l"],[105,-1,"","OOS","va_flip","l"],[107,-1,"F1","OOS","absorption","l"],[109,1,"","OOS","break_test","l"],[112,1,"F1","OOS","absorption","l"],[114,1,"F2","OOS","va_flip","s"],[117,-1,"F2","OOS","break_test","s"],[118,-1,"F2","OOS","reload","s"],[120,-1,"F2","OOS","momentum","s"],[121,-1,"F2","OOS","reload","s"],[125,1,"","OOS","break_test","s"],[126,-1,"F1","OOS","absorption","s"],[127,1,"","OOS","va_flip","s"],[128,1,"","OOS","va_flip","s"],[129,1,"","OOS","reload","s"]];
+const RULES=[
+  {id:"F1",name:"吸收區唔好單獨入場"},
+  {id:"F2",name:"唔好逆 NetGEX 做"},
+  {id:"F3",name:"連輸要停；唔好放闊止蝕"},
+  {id:"F4",name:"第一下急推唔好追"},
+  {id:"F5",name:"失敗過幾次嘅位唔好再試"},
+  {id:"F6",name:"止蝕唔好貼明顯高／低位"}
+];
+RULES.forEach(r=>{const h=T.filter(t=>t[2]===r.id);r.n=h.length;r.w=h.filter(t=>t[1]>0).length;r.l=r.n-r.w;});
+const ruleOf=id=>RULES.find(r=>r.id===id);
+
+/* ---------------- ticker ---------------- */
+const tk=RULES.map(r=>`${r.id} ${r.name} · 擋 ${r.n} 筆 ${r.w}W ${r.l}L`).join('   ///   ')+'   ///   VA 翻向入場 10W 2L   ///   ';
+document.getElementById('tick').innerHTML=`<span>${tk}</span><span>${tk}</span>`;
+
+/* ---------------- sieve ---------------- */
+const on=new Set();
+const grid=document.getElementById('grid');
+T.forEach(t=>{const d=document.createElement('div');d.className='chip '+(t[1]>0?'win':'loss');d.dataset.by=t[2];
+  d.innerHTML=`#${t[0]}<i>${t[1]>0?'+1':'−1'}</i>`;d.title=`#${t[0]} ${t[3]==='IS'?'前段':'後段'} · ${t[5]==='l'?'long':'short'} · ${t[4]}`;grid.appendChild(d);t.el=d;});
+const ftWrap=document.getElementById('ftWrap');
+RULES.forEach(r=>{const b=document.createElement('button');b.type='button';b.className='ft fx';b.setAttribute('aria-pressed','false');
+  b.innerHTML=`<b>${r.id}</b><small>${r.name}</small>`;b.onclick=()=>{on.has(r.id)?on.delete(r.id):on.add(r.id);sync();};r.btn=b;ftWrap.appendChild(b);});
+let shownR=1;
+function sync(){
+  let k=0,w=0,l=0;
+  T.forEach(t=>{const out=on.has(t[2]);t.el.classList.toggle('out',out);if(!out){k++;t[1]>0?w++:l++;}});
+  RULES.forEach(r=>r.btn.setAttribute('aria-pressed',on.has(r.id)));
+  document.getElementById('sKept').textContent=k;document.getElementById('sW').textContent=w;document.getElementById('sL').textContent=l;
+  animR(w-l);
+}
+const fmtR=v=>(v>0?'+':v<0?'−':'')+Math.abs(v);
+function animR(to){
+  const el=document.getElementById('netR');const from=shownR;shownR=to;
+  if(reduce){el.textContent=fmtR(to);return;}
+  const t0=performance.now();
+  (function f(now){const p=Math.min(1,(now-t0)/700);el.textContent=p<1&&Math.random()<.35?fmtR(Math.round(Math.random()*30-5)):fmtR(Math.round(from+(to-from)*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(f);else el.textContent=fmtR(to);})(t0);
+}
+let playing=null;
+document.getElementById('playAll').onclick=()=>{clearInterval(playing);on.clear();sync();let i=0;
+  playing=setInterval(()=>{if(i>=RULES.length){clearInterval(playing);return;}on.add(RULES[i++].id);sync();},reduce?0:750);};
+document.getElementById('reset').onclick=()=>{clearInterval(playing);on.clear();sync();};
+
+/* ---------------- progress (per viewer) ---------------- */
+let cleared=new Set();
+try{cleared=new Set(JSON.parse(localStorage.getItem('f16-cleared')||'[]'));}catch(e){}
+function saveCleared(){try{localStorage.setItem('f16-cleared',JSON.stringify([...cleared]));}catch(e){}renderMap();}
+function renderMap(){
+  document.getElementById('map').innerHTML=RULES.map(r=>{const c=cleared.has(r.id);return `
+    <a href="#${r.id.toLowerCase()}" class="lv glass tilt fx ${c?'clear':''}">
+      <span class="st">${c?'✓ 過關':'未玩'}</span>
+      <span class="id">${r.id}</span><h3>${r.name}</h3>
+      <span class="hit">擋 ${r.n} 筆 · <span class="w">${r.w}W</span> <span class="l">${r.l}L</span></span>
+    </a>`;}).join('')+`
+    <a href="#exam" class="lv glass tilt fx ${cleared.has('EX')?'clear':''}">
+      <span class="st">${cleared.has('EX')?'✓ 過關':'最後一關'}</span>
+      <span class="id">✓</span><h3>Checklist 實戰</h3>
+      <span class="hit">10 筆隨機真實單 · 啱 8 筆過關</span>
+    </a>`;
+  document.getElementById('clearCount').textContent=RULES.filter(r=>cleared.has(r.id)).length;
+}
+
+/* ---------------- 40R bar builder ---------------- */
+// Range bar = 10 NQ points (40 ticks). d=+1 up / -1 down; p = pullback before the run; vb = VA centre offset from the bar's mid.
+function build(start,specs){let c=start;return specs.map(([d,p,vb])=>{const o=c;let h,l;
+  if(d>0){l=o-p;h=l+10;c=h;}else{h=o+p;l=h-10;c=l;}
+  const mid=(h+l)/2+vb;return {o,h,l,c,d,vah:mid+3.25,val:mid-3.25,vc:mid};});}
+
+/* ---------------- game engine ---------------- */
+const NMAX=19;
+class Game{
+  constructor(lv){
+    this.lv=lv;const s=lv.sec;
+    this.cv=s.querySelector('canvas');this.ctx=this.cv.getContext('2d');
+    this.sayEl=s.querySelector('.say');this.choices=s.querySelector('.choices');this.stepEl=s.querySelector('.stepno');
+    this.stampEl=s.querySelector('.stamp');this.hudEl=s.querySelector('.hud');this.readEl=s.querySelector('.read');
+    this.pathsEl=s.querySelector('.paths');this.pg=[...s.querySelectorAll('.progress span')];
+    this.seen=new Set();this.runId=0;this.reset();
+  }
+  reset(){this.bars=[];this.trade=null;this.marks={};this.outcome=null;this.growing=null;this.stampEl.classList.remove('show');this.hudEl.innerHTML='';}
+  last(){return this.bars[this.bars.length-1];}
+  show(list){this.bars.push(...list);this.draw();}
+  hud(html){this.hudEl.innerHTML=html;}
+  mark(i,text,col='--acc',pos='above'){if(i<0)i=this.bars.length+i;this.marks[i]={text,col,pos};this.draw();}
+  setTrade(t){this.trade={...t,at:this.bars.length,filled:!!t.market};this.outcome=null;this.draw();}
+  step(n){this.stepEl.textContent=`STEP ${n} / 3`;this.pg.forEach((p,i)=>p.classList.toggle('done',i<n));this.renderPaths();}
+  renderPaths(){this.pathsEl.innerHTML=this.lv.paths.map(([k,lab])=>`<span>${this.seen.has(k)?'<span class="ok">●</span>':'○'} ${lab}</span>`).join('');}
+  say(n,html){this.step(n);this.sayEl.innerHTML=html;this.choices.innerHTML='';}
+  ask(n,html,opts){this.say(n,html);return new Promise(res=>{opts.forEach(o=>{const b=document.createElement('button');b.type='button';b.className='choice fx'+(o.primary?' primary':'');
+    b.innerHTML=`${o.t}${o.s?`<small>${o.s}</small>`:''}`;b.onclick=()=>{this.choices.innerHTML='';res(o.k);};this.choices.appendChild(b);});});}
+  async feed(list,ms=340){const id=this.runId;for(const b of list){if(id!==this.runId)return;
+    if(!reduce){const steps=6;for(let s=1;s<=steps;s++){const f=s/steps,g={...b};g.gc=b.o+(b.c-b.o)*f;
+      g.gh=Math.max(b.o,g.gc,b.d<0?b.o+(b.h-b.o)*Math.min(1,f*3):g.gc);g.gl=Math.min(b.o,g.gc,b.d>0?b.o-(b.o-b.l)*Math.min(1,f*3):g.gc);
+      this.growing=g;this.draw();await sleep(ms/steps);if(id!==this.runId)return;}}
+    this.growing=null;this.bars.push(b);this.check(b);if(this.lv.onBar)this.lv.onBar(this,b,this.bars.length-1);this.draw();await sleep(60);}}
+  check(b){const t=this.trade;if(!t||this.outcome!=null)return;
+    if(!t.filled&&b.l<=t.entry&&b.h>=t.entry)t.filled=true;
+    if(!t.filled)return;
+    if(t.side==='long'){if(b.l<=t.sl)this.outcome=-1;else if(b.h>=t.tp)this.outcome=1;}
+    else{if(b.h>=t.sl)this.outcome=-1;else if(b.l<=t.tp)this.outcome=1;}
+    if(this.outcome!=null)this.trade.hitAt=this.bars.length-1;}
+  stamp(txt,col){this.stampEl.textContent=txt;this.stampEl.style.color=css(col);this.stampEl.classList.remove('show');void this.stampEl.offsetWidth;this.stampEl.classList.add('show');}
+  end(key,r,html,ghost){
+    this.seen.add(key);
+    this.stamp(r>0?'+1R':r<0?'−1R':'0R',r>0?'--bid':r<0?'--offer':'--mute');
+    const gm=this.lv.sec.querySelector('.game');gm.classList.remove('win','hit');void gm.offsetWidth;if(r)gm.classList.add(r>0?'win':'hit');
+    const other=this.lv.paths.find(([k])=>!this.seen.has(k));
+    this.say(3,`<div class="result"><span class="r ${r>0?'w':r<0?'l':''}" ${r===0?'style="color:var(--mute)"':''}>${r>0?'+1R':r<0?'−1R':'0R'}</span>${html}</div>`);
+    if(!other&&!cleared.has(this.lv.id)){cleared.add(this.lv.id);saveCleared();}
+    if(!other)this.sayEl.insertAdjacentHTML('beforeend',`<p class="clearmsg" style="margin-top:12px"><b>${this.lv.id} 過關。</b>${this.lv.mantra}</p>`);
+    const b=document.createElement('button');b.type='button';b.className='choice fx'+(other?' primary':'');
+    b.textContent=other?`返去，試「${other[1]}」`:'再玩一次';b.onclick=()=>this.start();this.choices.appendChild(b);
+  }
+  start(){this.runId++;this.reset();this.say(1,'行情播緊……');this.lv.run(this);}
+  intro(){this.reset();if(this.lv.hudHTML)this.hud(this.lv.hudHTML);this.show(this.lv.preview(this));this.say(1,this.lv.introText);
+    const b=document.createElement('button');b.type='button';b.className='choice fx primary';b.textContent='▶ 開始';b.onclick=()=>this.start();this.choices.appendChild(b);}
+  size(){const r=this.cv.getBoundingClientRect(),dpr=devicePixelRatio||1;this.cv.width=r.width*dpr;this.cv.height=r.height*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.draw();}
+  draw(){
+    const ctx=this.ctx,cv=this.cv,W=cv.clientWidth,H=cv.clientHeight;if(!W)return;
+    const [Y0,Y1]=this.lv.y,padR=92,prof=W<520?0:64,plotW=W-padR-prof-12,top=16,bot=22;
+    const y=v=>top+(Y1-v)/(Y1-Y0)*(H-top-bot),bw=plotW/NMAX,x=i=>12+i*bw+bw/2;
+    ctx.clearRect(0,0,W,H);ctx.font='11px "JetBrains Mono",monospace';ctx.textBaseline='middle';ctx.textAlign='left';
+    const stepV=(Y1-Y0)>80?20:10;
+    for(let v=Math.ceil(Y0/stepV)*stepV;v<=Y1;v+=stepV){ctx.strokeStyle=css('--line');ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y(v)+.5);ctx.lineTo(W-padR,y(v)+.5);ctx.stroke();
+      ctx.fillStyle=css('--mute');ctx.fillText(v.toLocaleString('en-US'),W-padR+8,y(v));}
+    (this.lv.zones||[]).forEach(z=>{ctx.fillStyle=css(z.fill);ctx.fillRect(0,y(z.hi),W-padR,y(z.lo)-y(z.hi));ctx.fillStyle=css(z.col);ctx.font='600 12px "Noto Sans TC",sans-serif';ctx.fillText(z.label,8,y(z.lo)+11);ctx.font='11px "JetBrains Mono",monospace';});
+    (this.lv.lines||[]).forEach(L=>{ctx.strokeStyle=css(L.col);ctx.setLineDash([2,4]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,y(L.v));ctx.lineTo(W-padR,y(L.v));ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=css(L.col);ctx.font='600 12px "Noto Sans TC",sans-serif';ctx.textAlign='right';ctx.fillText(L.label,W-padR-prof-8,y(L.v)-9);ctx.textAlign='left';ctx.font='11px "JetBrains Mono",monospace';});
+    if(prof&&this.bars.length){const bins={};let mx=0;this.bars.forEach(b=>{for(let v=Math.ceil(b.l);v<=b.h;v++){const wgt=1+2.4*Math.exp(-Math.pow(v-b.vc,2)/8);bins[v]=(bins[v]||0)+wgt;mx=Math.max(mx,bins[v]);}});
+      let poc=null;for(const k in bins){if(bins[k]===mx)poc=+k;const len=bins[k]/mx*prof;ctx.fillStyle=css('--panel-2');ctx.fillRect(W-padR-len,y(+k)-1.5,len,3);}
+      ctx.fillStyle=css('--acc');ctx.fillRect(W-padR-prof,y(poc)-1,prof,2);ctx.fillText('POC',W-padR-prof-30,y(poc));}
+    const view=this.growing?this.bars.concat([this.growing]):this.bars;
+    view.forEach((b,i)=>{const cx=x(i),col=b.d>0?css('--bid'):css('--offer'),m=this.marks[i];
+      ctx.fillStyle=m&&m.col==='--acc'?'rgba(77,225,255,.16)':'rgba(140,170,255,.06)';ctx.fillRect(cx-bw*.42,y(b.vah),bw*.84,y(b.val)-y(b.vah));
+      ctx.strokeStyle=m&&m.col==='--acc'?css('--acc'):'rgba(140,170,255,.32)';ctx.lineWidth=m&&m.col==='--acc'?1.5:1;ctx.strokeRect(cx-bw*.42+.5,y(b.vah)+.5,bw*.84-1,y(b.val)-y(b.vah));
+      ctx.shadowColor=col;ctx.shadowBlur=8;ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(cx,y(b.gh??b.h));ctx.lineTo(cx,y(b.gl??b.l));ctx.stroke();
+      const ot=y(Math.max(b.o,b.gc??b.c)),ob=y(Math.min(b.o,b.gc??b.c));ctx.fillStyle=col;ctx.fillRect(cx-bw*.18,ot,bw*.36,Math.max(1.5,ob-ot));ctx.shadowBlur=0;});
+    ctx.font='600 12px "Noto Sans TC",sans-serif';ctx.textAlign='center';
+    for(const i in this.marks){const b=this.bars[i];if(!b)continue;const m=this.marks[i];ctx.fillStyle=css(m.col);
+      ctx.fillText(m.text,Math.min(Math.max(x(+i),40),W-padR-40),m.pos==='above'?y(b.h)-12:y(b.l)+14);}
+    ctx.textAlign='left';ctx.font='11px "JetBrains Mono",monospace';
+    const t=this.trade;
+    if(t){const pre=t.ghost?'如果做 ':'';[['entry','--bone','入場'],['sl','--offer','止蝕'],['tp','--bid','止賺']].forEach(([k,c,lab])=>{
+        ctx.globalAlpha=t.ghost?.55:1;ctx.strokeStyle=css(c);ctx.setLineDash(k==='entry'&&!t.ghost?[]:[5,4]);ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.moveTo(x(t.at)-bw/2,y(t[k]));ctx.lineTo(W-padR,y(t[k]));ctx.stroke();ctx.setLineDash([]);
+        ctx.fillStyle=css(c);ctx.fillRect(W-padR,y(t[k])-9,padR,18);ctx.fillStyle='#04060c';ctx.font='600 10.5px "JetBrains Mono",monospace';
+        ctx.fillText(lab+' '+fmtP(t[k]),W-padR+3,y(t[k]));ctx.font='11px "JetBrains Mono",monospace';ctx.globalAlpha=1;});
+      if(t.ghost){ctx.fillStyle=css('--mute');ctx.font='600 12px "Noto Sans TC",sans-serif';ctx.fillText('虛線 = 如果做咗',x(t.at)-bw/2,top+8);ctx.font='11px "JetBrains Mono",monospace';}}
+    ctx.shadowBlur=0;const lb=this.last();this.readEl.textContent=lb?`最新 K  O ${fmtP(lb.o)}  H ${fmtP(lb.h)}  L ${fmtP(lb.l)}  C ${fmtP(lb.c)}  VA ${fmtP(lb.val)}–${fmtP(lb.vah)}`:'—';
+  }
+}
+
+/* ---------------- levels ---------------- */
+const zoneStat=(f)=>{const s=T.filter(f);return [s.filter(t=>t[1]>0).length,s.filter(t=>t[1]<0).length];};
+const hitsHTML=id=>T.filter(t=>t[2]===id).map(t=>`<span class="${t[1]>0?'w':'l'}">#${t[0]} ${t[1]>0?'+1':'−1'}</span>`).join('');
+const barsHTML=(rows,scale)=>rows.map(([n,w,l])=>`<div class="bar"><span>${n}</span><span class="track"><i style="width:${w/scale*100}%;background:var(--bid);box-shadow:0 0 10px var(--bid)"></i><i style="width:${l/scale*100}%;background:var(--offer);box-shadow:0 0 10px var(--offer)"></i></span><span class="n">${w} 贏 ${l} 輸</span></div>`).join('');
+const NETGEX={with:[12,11],against:[2,7]}; // tag_stats.txt, trade_vs_netgex (V4 days)
+
+const LEVELS=[];
+
+/* ===== F1 ===== */
+{const H=build(21060,[[-1,0,-1],[-1,2,-1],[1,4,1],[-1,3,-.5],[-1,1,-1],[-1,0,-1.2],[1,5,.8],[-1,2,-1],[-1,1,-1],[-1,0,-1.3],[-1,2,-1]]);
+LEVELS.push({id:'F1',name:'吸收區唔好單獨入場',y:[20962,21068],
+  sub:'價格去到一方「被吸收／保護／拒絕」嘅區，要見到 VA 向交易方向翻先入；冇翻就唔做。',
+  zones:[{lo:20978,hi:20992,label:'買方保護區',fill:'--zone',col:'--bid'}],
+  paths:[['x','即刻入'],['y','等 VA 翻向']],
+  mantra:'吸收區？VA 翻咗未？未翻 → 唔做。',
+  preview:()=>H,
+  introText:'一段模擬嘅 NQ 40 Range 行情，價格一路跌向一個<b>買方保護區</b>（綠色帶）。撳「開始」睇住佢一支一支 K 咁行。',
+  async run(g){g.show(H.slice(0,-1));await g.feed(H.slice(-1),380);
+    const c=await g.ask(1,'價格掂到下面嘅<b>買方保護區</b>。Fabio 講過呢度有買家守住。<br>你會點做？',[
+      {k:'x',t:'即刻喺區頂掛 long',s:'買家守緊，搏佢反彈'},{k:'y',t:'等 VA 向上翻先算',s:'先睇買家係咪真係贏',primary:true}]);
+    if(c==='x'){g.setTrade({side:'long',entry:20990,sl:20980,tp:21000});g.say(2,'喺 <b>20,990</b> 掛 long，止蝕 10 點，止賺 10 點（1:1）。睇下買家守唔守得住……');
+      await g.feed(build(g.last().c,[[-1,1,-1],[-1,3,-1.4],[-1,1,-1],[-1,0,-1]]));
+      return g.end('x',-1,'<span>保護區冇守到，賣家繼續推落去。每支 K 嘅 VA 都係一路向下，冇一支翻向。</span><span class="note">呢個就係 <b>#67</b>：買方保護位掛 long，止蝕。53 筆入面，吸收／保護區直接入場係 4 贏 12 輸。</span>');}
+    g.say(2,'唔入住。睇住每支 K 嘅 <b>VA 方框</b>：佢有冇向上移？');
+    const Y1=build(g.last().c,[[-1,1,-1.2],[-1,6,.5],[1,0,1.5]]);
+    await g.feed(Y1.slice(0,2),420);g.mark(-1,'被吸收','--bid','below');
+    g.say(2,'第二支 K 掃低咗，但 <b>VA 只係跌咗少少</b>，成交量堆喺上半部：賣壓被吸收緊。仲未翻向，繼續等。');await sleep(1400);
+    await g.feed(Y1.slice(2),420);g.mark(-1,'VA 向上翻');const fb=g.last();
+    const tr={side:'long',entry:Math.round(fb.vc*4)/4,sl:fb.l-2};tr.tp=tr.entry+(tr.entry-tr.sl);
+    const c2=await g.ask(2,'呢支 K <b>向上收</b>，而且 <b>VA 高過上一支</b>：VA 向上翻咗，買家定咗新標準。<br>而家點做？',[
+      {k:'go',t:`喺新 VA 掛 long（${fmtP(tr.entry)}）`,s:`止蝕放喺 K 低位下面再留 2 點緩衝（${fmtP(tr.sl)}）`,primary:true},{k:'skip',t:'都係唔做'}]);
+    if(c2==='skip')return g.end('y',0,'<span>唔做唔會輸錢。不過「VA 翻向後喺 VA 掛單」係成套規則入面最穩嘅入場：53 筆入面 10 贏 2 輸。</span>');
+    g.setTrade(tr);g.say(2,`限價 long 掛喺 <b>${fmtP(tr.entry)}</b>，等價格回落嚟測 VA。`);
+    await g.feed(build(g.last().c,[[1,4,.6],[1,1,1],[1,2,.5]]),380);
+    g.end('y',1,'<span>回測 VA 成交，之後一路上到止賺。</span><span class="note">呢個就係 <b>#66、#68</b> 嘅做法：同樣係吸收區，等到 VA 翻向先入，兩筆都贏。</span>');},
+  quote:'價格去到被吸收、保護或者拒絕嘅區，<span class="a">VA 冇向你個方向翻，就唔做。</span>',
+  lose:['#59、#60','見到上方拒絕就 short，冇等 VA 翻向，兩筆都止蝕。'],win:['#66、#68','同樣係吸收區，等到 VA 翻向先 long，兩筆都贏。'],
+  evidence:()=>`<span class="eyebrow">53 筆入面，按入場類型</span>${barsHTML([['吸收／保護區',...zoneStat(t=>t[4]==='absorption')],['VA 翻向',...zoneStat(t=>t[4]==='va_flip')]],16)}
+    <p class="note">吸收區前段 3 贏 9 輸、後段 1 贏 3 輸：兩段都輸，所以寫成規則。VA 翻向前段 7 贏 1 輸、後段 3 贏 1 輸。</p>`,
+  caveat:'F1 入面「有 VA 翻向就可以入」嘅例外，只有前段 2 筆支持；後段冇呢種情況可以測。'});}
+
+/* ===== F2 ===== */
+{const H=build(21300,[[-1,0,-1],[-1,2,-1],[-1,1,-1],[1,4,1],[-1,2,-1],[-1,0,-1],[-1,1,-1],[1,3,1.2],[1,1,1]]);
+LEVELS.push({id:'F2',name:'唔好逆 NetGEX 做',y:[21240,21306],
+  sub:'Fabio 自己教嘅 Gamma 否決（E5）。NetGEX 負就唔做 long，NetGEX 正就唔做 short。實戰次序排第一。',
+  paths:[['x','照 VA 翻向 long'],['y','順 NetGEX 等 short']],
+  mantra:'第一個問題永遠係：呢筆係咪逆 NetGEX？係 → 唔做。',
+  preview:()=>H,
+  introText:'今日 <b>NetGEX 係負數</b>。價格一路跌，之後開始反彈。留意上面嘅 NetGEX 指示。撳「開始」。',
+  hudHTML:'<span class="pill bad">NetGEX <b>−18</b></span><span class="pill">Gamma 負 → 只做 <b>short</b> 方向</span>',
+  async run(g){g.hud(this.hudHTML);g.show(H.slice(0,-2));await g.feed(H.slice(-2),400);g.mark(-1,'VA 向上翻');
+    const fb=g.last(),tr={side:'long',entry:Math.round(fb.vc*4)/4,sl:fb.l-2};tr.tp=tr.entry+(tr.entry-tr.sl);
+    const c=await g.ask(1,'反彈嗰支 K <b>向上收，VA 向上翻</b>，睇落同 F1 教嘅 long 位一模一樣。<br>但 NetGEX 係 <b>−18</b>。你會點？',[
+      {k:'x',t:`喺 VA 掛 long（${fmtP(tr.entry)}）`,s:'VA 翻咗，照 F1 做'},{k:'y',t:'唔做 long，等順 NetGEX 嘅 short',s:'Gamma 負，只睇賣方',primary:true}]);
+    if(c==='x'){g.setTrade(tr);g.say(2,`long 掛喺 <b>${fmtP(tr.entry)}</b>。NetGEX 負嘅日子，睇下反彈撐唔撐得住……`);
+      await g.feed(build(g.last().c,[[-1,1,-1],[-1,2,-1.2],[-1,0,-1]]));
+      return g.end('x',-1,'<span>反彈好快被賣返落嚟，止蝕。VA 翻向都救唔到逆 Gamma 嘅單。</span><span class="note">好似 <b>#90、#92</b>：Gamma 負嘅日子做 long，兩筆都輸。逆 NetGEX 嘅 9 筆入面 2 贏 7 輸。</span>');}
+    g.say(2,'唔做 long。等賣方返嚟，睇 VA 幾時<b>向下翻</b>。');
+    const Y1=build(g.last().c,[[-1,1,-1],[1,1,.5],[-1,1,-1.5]]);await g.feed(Y1,420);g.mark(-1,'VA 向下翻','--acc','below');
+    const sb=g.last(),st={side:'short',entry:Math.round(sb.vc*4)/4,sl:sb.h+2};st.tp=st.entry-(st.sl-st.entry);
+    const c2=await g.ask(2,'反彈失敗，呢支 K <b>向下收，VA 低過上一支</b>：賣方翻向，同 NetGEX 同一邊。<br>而家點做？',[
+      {k:'go',t:`喺 VA 掛 short（${fmtP(st.entry)}）`,s:`止蝕放喺 K 高位上面留 2 點（${fmtP(st.sl)}）`,primary:true},{k:'skip',t:'都係唔做'}]);
+    if(c2==='skip')return g.end('y',0,'<span>唔做冇問題。重點係你冇逆 NetGEX 做嗰筆 long。</span>');
+    g.setTrade(st);g.say(2,`short 掛喺 <b>${fmtP(st.entry)}</b>，等價格彈上嚟測 VA。`);
+    await g.feed(build(g.last().c,[[-1,4,-1],[-1,0,-1],[-1,1,-1]]),380);
+    g.end('y',1,'<span>彈上 VA 成交，之後跌到止賺。</span><span class="note">呢個就係 <b>#47</b> 嘅做法：Gamma 轉負、反彈後見賣方先 short，到止賺。</span>');},
+  quote:'NetGEX 負就唔好 long，NetGEX 正就唔好 short。<span class="a">其他條件幾靚都一樣。</span>',
+  lose:['#118','NetGEX 正數，仲做 reload short，又放大咗止蝕，結果止蝕。'],win:['#47','Gamma 轉負、反彈後見賣方 aggression 先 short，到止賺。'],
+  evidence:()=>`<span class="eyebrow">有 Gamma 數據嘅日子，按方向</span>${barsHTML([['順 NetGEX',...NETGEX.with],['逆 NetGEX',...NETGEX.against]],23)}
+    <p class="note">逆 NetGEX 前段 1 贏 2 輸、後段 1 贏 5 輸：兩段都輸。呢條係 Fabio 教過嘅規則（E5），唔係由案例倒推。</p>`,
+  caveat:'4 月回放冇 Gamma 數據，嗰 18 筆唔適用呢條。'});}
+
+/* ===== F3 ===== */
+{const H=build(21500,[[1,0,1],[-1,3,-1],[1,2,1],[-1,4,-1],[-1,1,-1],[1,3,1.2],[1,1,1]]);
+const meter=n=>`<span class="pill ${n>=2?'bad':''}">今日 <b>−${n}R</b> <span class="meter">${[1,2,3].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span> 上限 −3R</span>`;
+LEVELS.push({id:'F3',name:'連輸要停；唔好放闊止蝕',y:[21470,21532],
+  sub:'已經連續止蝕、接近當日止蝕上限，或者要放大止蝕先做得，就唔做。',
+  paths:[['x','照做'],['y','今日收工']],
+  mantra:'連續止蝕、近上限、要放闊止蝕：任何一樣 → 收工。',
+  preview:()=>H,
+  introText:'今日已經做咗兩筆，<b>兩筆都止蝕</b>。當日止蝕上限係 −3R。撳「開始」睇下一個機會。',
+  async run(g){g.hud(meter(2)+'<span class="pill">09:41 short <b class="l">−1R</b></span><span class="pill">10:05 long <b class="l">−1R</b></span>');
+    g.show(H.slice(0,-2));await g.feed(H.slice(-2),400);g.mark(-1,'VA 向上翻');
+    const c=await g.ask(1,'一個好靚嘅 long 位出現：<b>VA 向上翻</b>。但最近低位喺 21,493，你覺得止蝕要放到 <b>21,491</b>（17 點）先安心，比平時闊一倍。<br>今日已經 <b>−2R</b>。你會點？',[
+      {k:'x',t:'照做，止蝕放闊啲',s:'呢個位好靚，搏返今日'},{k:'y',t:'今日收工',s:'連輸兩筆，又要放闊止蝕',primary:true}]);
+    const tr={side:'long',entry:21508,sl:21491,tp:21525};
+    if(c==='x'){g.setTrade(tr);g.say(2,'long 掛喺 <b>21,508</b>，止蝕 21,491。');
+      await g.feed(build(g.last().c,[[-1,1,-1],[-1,0,-1],[-1,0,-1]]));g.hud(meter(3)+'<span class="pill bad">撞上當日上限</span>');
+      return g.end('x',-1,'<span>第三次止蝕，今日 −3R，撞正上限。放闊咗嘅止蝕令呢筆輸得更多。</span><span class="note">呢個就係 <b>#61</b>：當日已經連續止蝕兩次，仲做多一筆，第三次止蝕。<b>#70</b> 都係放大止蝕嘅 momentum long，止蝕。</span>');}
+    g.setTrade({...tr,ghost:true});g.say(2,'收工。睇埋之後行情，虛線係「如果做咗」。');
+    await g.feed(build(g.last().c,[[-1,1,-1],[-1,0,-1],[-1,0,-1]]),380);
+    g.end('y',0,'<span>今日 −2R 收，冇撞上限。之後呢個位都係止蝕咗：如果做咗就係 −3R。</span><span class="note">對比 <b>#129</b>：當日已經賺緊錢，收工前最後一筆，贏。分別係當日狀態，唔係個位靚唔靚。</span>');},
+  quote:'連輸要停。<span class="a">要放闊止蝕先做得嘅單，就唔係你嘅單。</span>',
+  lose:['#61','當日已經連續止蝕兩次，仲做多一筆，第三次止蝕。'],win:['#129','當日已經賺緊，收工前最後一筆，贏。'],
+  evidence:()=>`<span class="eyebrow">F3 擋走嘅單</span>${barsHTML([['F3 擋走',0,2]],2)}`,
+  caveat:'F3 只有 2 筆證據（#61、#70），係貼合呢 53 筆寫出嚟，未喺新單測過。'});}
+
+/* ===== F4 ===== */
+{const H=build(21800,[[1,0,0],[-1,2,0],[1,3,0],[-1,2,0],[1,2,0],[-1,0,-1.5],[-1,0,-1.7]]);
+const SNAP=[[1,2,1],[1,0,1]],ACCEPT=[[1,1,1.5],[-1,2,1.5],[1,1,1.5],[1,0,1.5]];
+LEVELS.push({id:'F4',name:'第一下急推唔好追',y:[21778,21842],
+  sub:'要一方已經建立控制（之前嘅推動被接受）先追 momentum。第一下急推通常會撞到對手保護。',
+  zones:[{lo:21799,hi:21812,label:'區間',fill:'--zone-r',col:'--mute'}],
+  paths:[['x','即刻追'],['y','等控制權']],
+  mantra:'第一下急推？一方控制咗未？未 → 唔追。',
+  preview:()=>H,
+  introText:'價格喺一個<b>區間</b>入面上上落落。突然嚟咗兩支大陰燭。撳「開始」。',
+  async run(g){g.show(H.slice(0,-2));await g.feed(H.slice(-2),360);g.mark(-1,'第一下急推','--offer','below');
+    const c=await g.ask(1,'賣方<b>第一下急推</b>，連續兩支陰燭跌穿區間底。<br>你會點？',[
+      {k:'x',t:'即刻追 short（市價 21,789）',s:'momentum 嚟咗，唔追就冇'},{k:'y',t:'等一方建立控制先算',s:'第一下推動未被接受',primary:true}]);
+    if(c==='x'){g.setTrade({side:'short',entry:21789,sl:21801,tp:21777,market:true});g.say(2,'市價 short <b>21,789</b>，止蝕放喺區間底上面 <b>21,801</b>。');
+      await g.feed(build(g.last().c,SNAP));
+      return g.end('x',-1,'<span>買方喺下面保護，價格即刻彈返入區間，止蝕。</span><span class="note">呢個就係 <b>#95</b>：第一下進取賣壓就追 short，即刻撞埋買方保護反轉。</span>');}
+    g.say(2,'唔追。睇下呢一推<b>有冇被接受</b>。');
+    await g.feed(build(g.last().c,SNAP),400);g.mark(-1,'彈返入區間','--bid','above');
+    g.say(2,'賣方推唔落，價格彈返入區間：<b>冇被接受</b>。繼續睇邊一方攞到控制權。');await sleep(1200);
+    const A=build(g.last().c,ACCEPT);await g.feed(A.slice(0,3),420);g.mark(-1,'企穩區間上面','--bid','below');
+    g.say(2,'買方推穿區間頂，回落都<b>企得穩</b>，VA 一直留喺上面：呢一推<b>被接受</b>，買方控制咗。');await sleep(1200);
+    await g.feed(A.slice(3),420);g.mark(-1,'momentum K');const mk=g.last();
+    const tr={side:'long',entry:Math.round(mk.vc*4)/4,sl:mk.l-2};tr.tp=tr.entry+(tr.entry-tr.sl);
+    const c2=await g.ask(2,'買方已經控制，再嚟一支 <b>momentum K</b>。而家點做？',[
+      {k:'go',t:`喺 momentum K 嘅 VA 掛 long（${fmtP(tr.entry)}）`,s:`止蝕 ${fmtP(tr.sl)}`,primary:true},{k:'skip',t:'都係唔做'}]);
+    if(c2==='skip')return g.end('y',0,'<span>唔做冇問題。重點係你冇追第一下急推。</span>');
+    g.setTrade(tr);g.say(2,`long 掛喺 <b>${fmtP(tr.entry)}</b>。`);
+    await g.feed(build(g.last().c,[[1,4,1],[1,1,1]]),380);
+    g.end('y',1,'<span>回測 VA 成交，之後上到止賺。</span><span class="note">呢個就係 <b>#69</b>：買方已經控制咗之後先追 momentum，贏。</span>');},
+  quote:'第一下急推唔追。<span class="a">等之前嘅推動被接受，一方控制咗，先追 momentum。</span>',
+  lose:['#95','第一下進取賣壓就追 short，即刻撞埋買方保護反轉。'],win:['#69','買方已經控制咗之後先追 momentum，贏。'],
+  evidence:()=>`<span class="eyebrow">Momentum 入場，前後兩段</span>${barsHTML([['前 35 筆',5,1],['後 18 筆',0,2]],6)}
+    <p class="note">Momentum 入場前段 5 贏 1 輸、後段 0 贏 2 輸，唔穩定，所以冇禁晒 momentum，只係擋「第一下急推」。</p>`,
+  caveat:'F4 只有 1 筆證據（#95），係貼合呢 53 筆寫出嚟，未喺新單測過。'});}
+
+/* ===== F5 ===== */
+{const H=build(21990,[[1,0,0],[1,2,1],[-1,2,1],[-1,1,-1],[1,1,0],[1,2,1],[-1,2,1],[-1,0,-1],[1,0,0],[1,2,1],[-1,2,1],[1,1,1]]);
+const LVL=22010;
+LEVELS.push({id:'F5',name:'失敗過幾次嘅位唔好再試',y:[21978,22026],
+  sub:'同一個突破位／區間邊已經推唔過幾次，唔好再入。',
+  lines:[{v:LVL,label:'阻力 22,010',col:'--offer'}],
+  paths:[['x','第 4 次再試'],['y','唔做']],
+  mantra:'呢個位推唔過幾多次？幾次 → 唔再試。',
+  preview:()=>H,
+  introText:'上面有條<b>阻力位 22,010</b>。睇住價格一次又一次推上去，每次推唔過會標 ✕。撳「開始」。',
+  onBar(g,b,i){if(b.h===LVL&&b.d<0){g.fails=(g.fails||0)+1;g.mark(i,`✕${g.fails}`,'--offer');g.hud(`<span class="pill ${g.fails>=2?'bad':''}">22,010 推唔過：<b>${g.fails} 次</b></span>`);}},
+  async run(g){g.fails=0;g.hud('<span class="pill">22,010 推唔過：<b>0 次</b></span>');g.show(H.slice(0,2));await g.feed(H.slice(2),300);
+    const c=await g.ask(1,'價格<b>第 4 次</b>推上嚟，今次收喺 22,009，好似終於要突破。<br>你會點？',[
+      {k:'x',t:'市價 long（22,009），搏佢突破',s:'今次一定得'},{k:'y',t:'唔做',s:'呢個位已經失敗咗 3 次',primary:true}]);
+    const tr={side:'long',entry:22009,sl:21999,tp:22019,market:true};
+    if(c==='x'){g.setTrade(tr);g.say(2,'市價 long <b>22,009</b>，止蝕 21,999，止賺 22,019。');
+      await g.feed(build(g.last().c,[[-1,1,1],[-1,0,-1],[-1,0,-1]]));
+      return g.end('x',-1,'<span>第 4 次都推唔過，跌返落嚟止蝕。</span><span class="note">呢個就係 <b>#42</b>：同一個區推咗幾次都失敗，最後一次入場，止蝕。<b>#50</b> 都係咁。</span>');}
+    g.setTrade({...tr,ghost:true});g.say(2,'唔做。睇埋之後行情，虛線係「如果做咗」。');
+    await g.feed(build(g.last().c,[[-1,1,1],[-1,0,-1],[-1,0,-1]]),380);
+    g.end('y',0,'<span>第 4 次都失敗。唔做就避開咗一筆止蝕。</span><span class="note">對比 <b>#28</b>：只係等<b>一次</b>拒絕就入，贏。失敗一次係訊號，失敗幾次就係陷阱。</span>');},
+  quote:'同一個位推唔過幾次，<span class="a">就唔好再試。</span>',
+  lose:['#42','同一個區推咗幾次都失敗，最後一次入場，止蝕。'],win:['#28','只係等一次拒絕就入，贏。'],
+  evidence:()=>`<span class="eyebrow">F5 擋走嘅單</span>${barsHTML([['F5 擋走',0,2]],2)}`,
+  caveat:'F5 只有 2 筆證據（#42、#50），係貼合呢 53 筆寫出嚟，未喺新單測過。「幾次」冇定死數字。'});}
+
+/* ===== F6 ===== */
+{const H=build(22310,[[-1,0,-1],[-1,0,-1],[-1,1,-1],[1,3,1],[-1,1,-1],[1,1,1.2],[1,0,1.5]]);
+const AFTER=[[-1,2,-1],[-1,0,-1],[-1,6,1],[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1]];
+LEVELS.push({id:'F6',name:'止蝕唔好貼明顯高／低位',y:[22262,22332],
+  sub:'止蝕要留緩衝；1:1 空間唔夠留緩衝就唔做。',
+  lines:[{v:22278,label:'明顯低位 22,278',col:'--offer'},{v:22328,label:'上面阻力 22,328',col:'--mute'}],
+  paths:[['x','貼住低位'],['y','留緩衝']],
+  mantra:'止蝕貼住明顯高／低位？留緩衝之後仲有冇 1:1？冇 → 唔做。',
+  preview:()=>H,
+  introText:'價格兩次守住 <b>22,278</b>，大家都見到呢個<b>明顯低位</b>。之後 VA 向上翻，出現 long 位。撳「開始」。',
+  async run(g){g.show(H.slice(0,-2));await g.feed(H.slice(-2),380);g.mark(-1,'VA 向上翻');
+    const e=Math.round(g.last().vc*4)/4;
+    const c=await g.ask(1,`喺 VA <b>${fmtP(e)}</b> 掛 long。止蝕放邊？`,[
+      {k:'x',t:'低位下 1 點（22,277）',s:`風險 ${fmtP(e-22277)} 點，止賺 ${fmtP(2*e-22277)}`},
+      {k:'y',t:'低位下 5 點（22,273）',s:`風險 ${fmtP(e-22273)} 點，止賺 ${fmtP(2*e-22273)}，未到阻力 22,328，1:1 夠位`,primary:true}]);
+    const sl=c==='x'?22277:22273;g.setTrade({side:'long',entry:e,sl,tp:2*e-sl});
+    g.say(2,`long 掛喺 <b>${fmtP(e)}</b>，止蝕 <b>${fmtP(sl)}</b>。`);
+    await g.feed(build(g.last().c,AFTER),340);
+    const sweep=g.bars.findIndex((b,i)=>i>=g.trade.at&&b.l===22276);if(sweep>=0)g.mark(sweep,'掃低位 22,276','--offer','below');
+    if(c==='x')return g.end('x',-1,'<span>價格掃穿低位 1 點，啱啱掃走你個止蝕，之後一路升，仲去到你原本嘅止賺。</span><span class="note">呢個就係 <b>#39</b>：止蝕啱啱放喺明顯低位下面，被掃走。Fabio 自己都話太近。</span>');
+    g.end('y',1,'<span>低位被掃，但你個止蝕喺下面 3 點，冇事。之後上到止賺。</span><span class="note">呢個就係 <b>#76</b> 嘅做法：用 VA 做保護，止蝕留有緩衝，贏。如果留咗緩衝之後 1:1 撞到阻力，就唔做。</span>');},
+  quote:'人人見到嘅高低位，就係人人放止蝕嘅位。<span class="a">留緩衝；1:1 唔夠位就唔做。</span>',
+  lose:['#39','止蝕啱啱放喺明顯低位下面，被掃走。'],win:['#76','用 VA 做保護，止蝕留有緩衝，贏。'],
+  evidence:()=>`<span class="eyebrow">F6 擋走嘅單</span>${barsHTML([['F6 擋走',0,1]],2)}`,
+  caveat:'F6 只有 1 筆證據（#39），係貼合呢 53 筆寫出嚟，未喺新單測過。「緩衝幾多點」冇定死數字。'});}
+
+/* ---------------- render levels ---------------- */
+const host=document.getElementById('levels');
+LEVELS.forEach((lv,i)=>{const r=ruleOf(lv.id);
+  const sec=document.createElement('section');sec.className='level';sec.id=lv.id.toLowerCase();sec.setAttribute('aria-labelledby','h-'+sec.id);
+  sec.innerHTML=`
+    <div class="lvhead"><div class="id">${lv.id}</div>
+      <div class="txt"><span class="eyebrow">第 ${i+1} 關 · 擋走 ${r.n} 筆，${r.w} 贏 ${r.l} 輸</span><h2 id="h-${sec.id}">${lv.name}</h2><p>${lv.sub}兩條路都行一次先過關。</p></div></div>
+    <div class="game glass rv">
+      <div class="chartbox">
+        <div class="chartbar"><span>NQ · 40 Range · 示意行情（模擬）</span><span class="read">—</span></div>
+        <div class="hud"></div>
+        <canvas class="chart" role="img" aria-label="${lv.id} 練習用 40 Range K 線圖，每支 K 上面有一個價值區方框"></canvas>
+        <div class="stamp"></div>
+      </div>
+      <div class="side" aria-live="polite">
+        <div class="stepno">STEP 1 / 3</div><div class="say"></div><div class="choices"></div>
+        <div class="paths"></div>
+        <div class="progress" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <div class="rule glass rv">
+      <div class="col"><h3>規則卡 · ${lv.id}</h3><p class="quote">「${lv.quote}」</p>
+        <div class="pair">
+          <div><span class="tag l">擋走嘅輸單</span><b>${lv.lose[0]}</b><span class="note">${lv.lose[1]}</span></div>
+          <div><span class="tag w">照做嘅贏單</span><b>${lv.win[0]}</b><span class="note">${lv.win[1]}</span></div>
+        </div></div>
+      <div class="col"><h3>證據</h3><div class="bars">${lv.evidence()}</div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span class="eyebrow">${lv.id} 擋走嘅 ${r.n} 筆</span><div class="hits">${hitsHTML(lv.id)}</div></div>
+        <p class="warn">${lv.caveat}</p></div>
+    </div>`;
+  host.appendChild(sec);lv.sec=sec;lv.game=new Game(lv);
+});
+
+/* ---------------- checklist exam ---------------- */
+// [ordinal, R, dir, gex_sign, trade_vs_netgex, zone_type, date, range, rule flag (at most one), skipped_by] — from tagged_with_rules.csv
+const X=[[53,1,"l","na","na","va_flip","","40R","",""],[54,1,"l","na","na","break_test","","40R","",""],[58,1,"s","na","na","va_flip","2026-04-13","40R","",""],[59,-1,"s","na","na","absorption","2026-04-13","40R","F1","F1"],[60,-1,"s","na","na","absorption","2026-04-13","40R","F1","F1"],[61,-1,"s","na","na","va_flip","2026-04-13","40R","F3","F3"],[63,1,"l","na","na","momentum","2026-04-14","40R","",""],[65,1,"l","na","na","momentum","2026-04-14","40R","",""],[66,1,"l","na","na","absorption","2026-04-14","40R","",""],[67,-1,"l","na","na","absorption","2026-04-14","40R","F1","F1"],[68,1,"l","na","na","absorption","2026-04-14","40R","",""],[69,1,"l","na","na","momentum","2026-04-14","40R","",""],[70,-1,"l","na","na","momentum","2026-04-14","40R","F3","F3"],[72,-1,"s","na","na","absorption","2026-04-14","40R","F1","F1"],[74,1,"l","na","na","absorption","2026-04-14","40R","F1","F1"],[75,1,"l","na","na","momentum","2026-04-14","40R","",""],[76,1,"l","na","na","reload","2026-04-14","40R","",""],[80,1,"s","na","na","va_flip","2026-04-14","40R","",""],[21,1,"s","-","with","reload","2026-06-04","40R","",""],[22,-1,"s","-","with","absorption","2026-06-04","40R","F1","F1"],[25,1,"s","~0","neutral","va_flip","2026-06-04","40R","",""],[27,1,"l","+","with","break_test","2026-06-04","40R","",""],[28,1,"l","+","with","reload","2026-06-04","40R","",""],[35,-1,"l","+","with","absorption","2026-06-11","40R","F1","F1"],[39,-1,"l","+","with","break_test","2026-06-11","40R","F6","F6"],[42,-1,"l","+","with","break_test","2026-06-11","40R","F5","F5"],[43,1,"l","+","with","momentum","2026-06-11","40R","",""],[46,-1,"s","~0","neutral","absorption","2026-06-11","40R","F1","F1"],[47,1,"s","-","with","reload","2026-06-11","40R","",""],[50,-1,"l","~0","neutral","break_test","2026-06-11","60R","F5","F5"],[82,-1,"s","-","with","absorption","2026-06-16","60R","F1","F1"],[86,-1,"s","-","with","absorption","2026-06-16","60R","F1","F1"],[89,1,"l","-","against","break_test","2026-06-16","60R","F2","F2"],[90,-1,"l","-","against","break_test","2026-06-16","60R","F2","F2"],[92,-1,"l","-","against","break_test","2026-06-16","60R","F2","F2"],[95,-1,"s","-","with","momentum","2026-06-18","40R","F4","F4"],[96,-1,"s","-","with","absorption","2026-06-18","40R","F1","F1"],[99,-1,"s","+","against","break_test","2026-06-18","60R","F2","F2"],[104,1,"l","+","with","break_test","2026-06-23","40R","",""],[105,-1,"l","+","with","va_flip","2026-06-23","40R","",""],[107,-1,"l","+","with","absorption","2026-06-23","40R","F1","F1"],[109,1,"l","+","with","break_test","2026-06-23","40R","",""],[112,1,"l","+","with","absorption","2026-06-23","40R","F1","F1"],[114,1,"s","+","against","va_flip","2026-06-23","40R","F2","F2"],[117,-1,"s","+","against","break_test","2026-06-23","40R","F2","F2"],[118,-1,"s","+","against","reload","2026-06-23","40R","F2","F2"],[120,-1,"s","+","against","momentum","2026-06-23","40R","F2","F2"],[121,-1,"s","+","against","reload","2026-06-23","40R","F2","F2"],[125,1,"s","-","with","break_test","2026-06-23","40R","",""],[126,-1,"s","-","with","absorption","2026-06-23","40R","F1","F1"],[127,1,"s","-","with","va_flip","2026-06-23","40R","",""],[128,1,"s","-","with","va_flip","2026-06-23","40R","",""],[129,1,"s","-","with","reload","2026-06-23","40R","",""]];
+const ORDER=[
+  ['F2','呢筆係咪逆 NetGEX？','NetGEX 負唔 long，正唔 short'],
+  ['F3','今日係咪已經連續止蝕，或者要放闊止蝕先做得？',''],
+  ['F5','呢個位係咪已經推唔過幾次？',''],
+  ['F1','係咪吸收／保護區，而 VA 未向我個方向翻？',''],
+  ['F4','係咪第一下急推就想追？',''],
+  ['F6','止蝕係咪貼住明顯高／低位，冇緩衝？','']];
+function describe(t){const [o,R,d,gs,vs,z,date,rng,flag]=t,L=d==='l';
+  const gex={'+':'正數（+）','-':'負數（−）','~0':'接近 0','na':'冇數據（4 月回放，當唔適用）'}[gs];
+  const day=o===61?'今日已經連續止蝕兩次':o===70?'要用比平時大嘅止蝕先做得':'未有連續止蝕，止蝕正常大小';
+  const lvl=flag==='F5'?'同一個突破位已經推唔過幾次':'呢個位未有失敗紀錄';
+  const zone={va_flip:`VA 啱啱向${L?'上':'下'}翻，喺 VA 掛單`,
+    absorption:(o===66||o===68)?`吸收／保護區，VA 已經向${L?'上':'下'}翻`:`吸收／保護區，VA 未翻`,
+    momentum:flag==='F4'?`第一下進取${L?'買':'賣'}壓，即刻追`:`${L?'買':'賣'}方已經控制咗之後嘅 momentum`,
+    reload:'回測 reload 區',break_test:'突破之後回測'}[z];
+  const stop=flag==='F6'?`貼住明顯${L?'低':'高'}位，冇緩衝`:'有留緩衝，1:1 夠位';
+  return [['NetGEX',gex],['今日狀態',day],['呢個位',lvl],['入場類型',zone],['止蝕',stop],['圖表',`${date||'4 月回放'} · NQ ${rng}`]];}
+const ex={deck:[],i:0,ans:[],you:0,rule:0,all:0,ok:0,log:[]};
+const fR=v=>v>0?'+'+v:v<0?'−'+Math.abs(v):'0';
+function newRound(){const a=X.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  Object.assign(ex,{deck:a.slice(0,10),i:0,you:0,rule:0,all:0,ok:0,log:[]});showTrade();}
+function tally(){document.getElementById('tYou').textContent=fR(ex.you);document.getElementById('tRule').textContent=fR(ex.rule);
+  document.getElementById('tAll').textContent=fR(ex.all);document.getElementById('tOk').textContent=`${ex.ok}/${ex.log.length}`;
+  document.getElementById('dots').innerHTML=ex.deck.map((_,k)=>`<i class="${k<ex.log.length?(ex.log[k].ok?'ok':'bad'):k===ex.i?'cur':''}"></i>`).join('');}
+function showTrade(){ex.ans=[];const t=ex.deck[ex.i],L=t[2]==='l';tally();
+  document.getElementById('ticket').innerHTML=`<div class="top"><span class="eyebrow">第 ${ex.i+1} / 10 筆 · 單號入場後先揭曉</span></div>
+    <div class="dir ${L?'w':'l'}">${L?'LONG':'SHORT'}</div>
+    <div class="fields">${describe(t).map(([k,v])=>`<div><span>${k}</span><b style="font-weight:500">${v}</b></div>`).join('')}</div>`;
+  renderChecks();}
+function renderChecks(done){const t=ex.deck[ex.i],n=ex.ans.length,stopped=ex.ans.includes(true);
+  document.getElementById('checks').innerHTML=ORDER.map(([id,q,hint],k)=>{const truth=t[8]===id;let right='';
+    if(k<n){const a=ex.ans[k];right=`<span class="ans">${a?'係':'唔係'}${done?(a===truth?' <span class="w">✓</span>':` <span class="l">✗ 應該${truth?'係':'唔係'}</span>`):''}</span>`;}
+    else if(!done&&!stopped&&k===n)right=`<span class="yn"><button type="button" class="fx" data-a="1">係</button><button type="button" class="fx" data-a="0">唔係</button></span>`;
+    else if(done)right=`<span class="ans" style="color:var(--mute)">未問${truth?'（其實係）':''}</span>`;
+    return `<div class="q ${k===n&&!done&&!stopped?'now':''} ${k>n&&!done?'later':''}"><span class="rid">${id}</span><span class="txt">${q}${hint?`<small>${hint}</small>`:''}</span>${right}</div>`;}).join('')
+    +(done?verdictHTML():'');
+  document.querySelectorAll('#checks .yn button').forEach(b=>b.onclick=()=>answer(b.dataset.a==='1'));
+  const nx=document.getElementById('exNext');if(nx)nx.onclick=()=>{if(ex.i<9){ex.i++;showTrade();}else summary();};}
+function answer(a){ex.ans.push(a);if(a||ex.ans.length===ORDER.length)finish();else renderChecks();}
+function finish(){const t=ex.deck[ex.i],took=!ex.ans.includes(true),ruleTake=!t[8],r=t[1];
+  const you=took?r:0,rule=ruleTake?r:0,ok=took===ruleTake;
+  ex.you+=you;ex.rule+=rule;ex.all+=r;if(ok)ex.ok++;ex.log.push({o:t[0],took,r,you,ok,flag:t[8]});
+  renderChecks(true);tally();}
+function verdictHTML(){const L=ex.log[ex.log.length-1];
+  return `<div class="verdict"><span class="big">${L.took?'你入咗場':'你冇做'}　<span class="${L.you>0?'w':L.you<0?'l':''}">${fR(L.you)}R</span></span>
+    <span>呢筆係 <b>#${L.o}</b>。Fabio 實際結果 <b class="${L.r>0?'w':'l'}">${fR(L.r)}R</b>。${L.flag?`規則：<b class="a">${L.flag}</b> 擋走，唔做。`:'規則：六條都唔係，可以做。'}${L.ok?' <span class="w">判斷啱。</span>':' <span class="l">判斷同規則唔同。</span>'}</span>
+    <div><button type="button" class="choice fx primary" id="exNext">${ex.i<9?'下一筆 →':'睇總結'}</button></div></div>`;}
+function summary(){tally();document.getElementById('dots').innerHTML=ex.log.map(l=>`<i class="${l.ok?'ok':'bad'}"></i>`).join('');
+  document.getElementById('ticket').innerHTML=`<span class="eyebrow">10 筆完成</span><div class="dir ${ex.you>=ex.rule?'w':''}" style="color:${ex.you>0?'var(--bid)':ex.you<0?'var(--offer)':'var(--mute)'}">${fR(ex.you)}R</div>
+    <p>跟規則會係 <b>${fR(ex.rule)}R</b>，照單全收係 <b>${fR(ex.all)}R</b>。10 筆入面判斷啱 <b>${ex.ok}</b> 筆。</p>
+    <div><button type="button" class="choice fx primary" id="exAgain">再嚟 10 筆</button></div>`;
+  document.getElementById('checks').innerHTML=`<div class="log">${ex.log.map(l=>`<div><span class="mono">#${l.o}</span><span>${l.took?'做咗':'冇做'}</span><span>${l.flag?`${l.flag} 擋走`:'可以做'} · Fabio ${fR(l.r)}R</span><span class="${l.ok?'w':'l'}">${l.ok?'✓':'✗'} ${fR(l.you)}R</span></div>`).join('')}</div>`;
+  document.getElementById('exAgain').onclick=newRound;
+  if(ex.ok>=8&&!cleared.has('EX')){cleared.add('EX');saveCleared();}}
+newRound();
+
+addEventListener('resize',()=>LEVELS.forEach(l=>l.game.size()));
+sync();renderMap();
+LEVELS.forEach(l=>{l.game.size();l.game.intro();});
+document.fonts&&document.fonts.ready.then(()=>LEVELS.forEach(l=>l.game.draw()));
+})();
+</script>
+
+</body>
+</html>
