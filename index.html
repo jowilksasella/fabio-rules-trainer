@@ -76,8 +76,23 @@ p{margin:0;max-width:64ch}
 @media (prefers-reduced-motion:no-preference){.ticker .t{display:inline-block;animation:tick 70s linear infinite}@keyframes tick{to{transform:translateX(-50%)}}}
 
 /* hero */
-.hero{display:flex;flex-direction:column;gap:30px;padding-top:12vh}
-.hero h1{font-family:var(--f-head);font-weight:900;font-size:clamp(34px,6.2vw,78px);line-height:1.08;letter-spacing:.01em;text-shadow:0 10px 40px rgba(0,0,0,.6)}
+.hero{display:flex;flex-direction:column;gap:26px;padding-top:9vh}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ptitle{margin:0;position:relative}
+#titleFx{display:block;width:100%;height:200px;touch-action:pan-y;filter:drop-shadow(0 0 14px rgba(77,225,255,.35))}
+@media (max-width:639px){#titleFx{height:170px}}
+.scoreL{display:flex;flex-direction:column;gap:18px;min-width:0}
+.heroLine{font-family:var(--f-head);font-weight:900;font-size:clamp(19px,2.5vw,30px);line-height:1.35;max-width:none;min-height:1.35em}
+.heroLine .ch{display:inline-block;white-space:pre}
+.heroLine .hl{color:var(--acc);text-shadow:0 0 18px rgba(77,225,255,.55)}
+.heroLine .hl.w{color:var(--bid);text-shadow:0 0 18px rgba(37,240,181,.55)}
+@media (prefers-reduced-motion:no-preference){.heroLine .ch{animation:chIn .45s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes chIn{from{opacity:0;transform:translateY(.5em) scale(.8);filter:blur(6px)}}}
+.heroLine::after{content:"";display:inline-block;width:.5em;height:.12em;margin-left:.15em;background:var(--acc);box-shadow:var(--glow);vertical-align:.1em}
+@media (prefers-reduced-motion:no-preference){.heroLine::after{animation:blink 1s steps(2) infinite}}
+.bigR{transform-origin:0 100%}
+.bigR.tick{animation:pop .22s ease-out}
+@keyframes pop{40%{transform:translateY(-.04em) scale(1.06)}}
 .hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--acc),var(--vio),var(--acc));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent}
 @media (prefers-reduced-motion:no-preference){.hero h1 em{animation:sheen 4s linear infinite}@keyframes sheen{to{background-position:-200% 0}}}
 .score{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;padding:26px 28px}
@@ -249,10 +264,12 @@ footer{position:relative;z-index:1;font-size:12.5px;color:var(--mute);border-top
 
   <!-- ============ HERO: the sieve ============ -->
   <section class="hero" aria-labelledby="h1">
-    <span class="eyebrow">Fabio PROP · 規則 stable 1.0 · 53 筆實單</span>
-    <h1 id="h1">照單全收，53 筆差唔多打和。<br>避開 <em>6 種情況</em>，剩低 24 筆。</h1>
+    <h1 id="h1" class="ptitle"><span class="sr">Fabio PROP · 規則 stable 1.0 · 53 筆實單</span><canvas id="titleFx" aria-hidden="true"></canvas></h1>
     <div class="score glass rv">
-      <div class="bigR mono" aria-live="polite"><span id="netR">+1</span><small>R</small></div>
+      <div class="scoreL">
+        <p class="heroLine" id="heroLine" aria-live="polite"></p>
+        <div class="bigR mono"><span id="netR">+1</span><small>R</small></div>
+      </div>
       <div class="stats">
         <div><b id="sKept">53</b><span>做咗</span></div>
         <div class="w"><b id="sW">27</b><span>贏</span></div>
@@ -540,14 +557,24 @@ function sync(){
   T.forEach(t=>{const out=on.has(t[2]);t.el.classList.toggle('out',out);if(!out){k++;t[1]>0?w++:l++;}});
   RULES.forEach(r=>r.btn.setAttribute('aria-pressed',on.has(r.id)));
   document.getElementById('sKept').textContent=k;document.getElementById('sW').textContent=w;document.getElementById('sL').textContent=l;
-  animR(w-l);
+  animR(w-l);heroLine(k,w,l);
 }
 const fmtR=v=>(v>0?'+':v<0?'−':'')+Math.abs(v);
+let rTimer=null;
 function animR(to){
-  const el=document.getElementById('netR');const from=shownR;shownR=to;
-  if(reduce){el.textContent=fmtR(to);return;}
-  const t0=performance.now();
-  (function f(now){const p=Math.min(1,(now-t0)/700);el.textContent=p<1&&Math.random()<.35?fmtR(Math.round(Math.random()*30-5)):fmtR(Math.round(from+(to-from)*(1-Math.pow(1-p,3))));if(p<1)requestAnimationFrame(f);else el.textContent=fmtR(to);})(t0);
+  const el=document.getElementById('netR'),box=el.parentElement;clearInterval(rTimer);
+  if(reduce||shownR===to){shownR=to;el.textContent=fmtR(to);return;}
+  const gap=Math.max(28,Math.min(90,600/Math.abs(to-shownR)));
+  rTimer=setInterval(()=>{shownR+=to>shownR?1:-1;el.textContent=fmtR(shownR);
+    box.classList.remove('tick');void box.offsetWidth;box.classList.add('tick');
+    if(shownR===to)clearInterval(rTimer);},gap);
+}
+function heroLine(k,w,l){
+  const ids=RULES.filter(r=>on.has(r.id)).map(r=>r.id),net=w-l;
+  const segs=ids.length===0?[['照單全收：53 筆，27 贏 26 輸，'],['差唔多打和','hl'],['。']]
+    :ids.length===RULES.length?[['避開 '],['6 種情況','hl'],[`，剩低 ${k} 筆，${w} 贏 ${l} 輸。`]]
+    :[[`避開 ${ids.join('、')}：剩低 ${k} 筆，${w} 贏 ${l} 輸，`],[fmtR(net)+'R','hl w'],['。']];
+  let i=0;document.getElementById('heroLine').innerHTML=segs.map(([t,c])=>[...t].map(ch=>`<span class="ch${c?' '+c:''}" style="animation-delay:${(i++)*16}ms">${ch}</span>`).join('')).join('');
 }
 let playing=null;
 document.getElementById('playAll').onclick=()=>{clearInterval(playing);on.clear();sync();let i=0;
@@ -941,6 +968,45 @@ function summary(){tally();document.getElementById('dots').innerHTML=ex.log.map(
   window.FX&&FX.exam(ex.log.map(l=>l.ok?'ok':'bad'));if(ex.ok>=8){window.FX&&FX.pulse('win','arena');}
   if(ex.ok>=8&&!cleared.has('EX')){cleared.add('EX');saveCleared();}}
 newRound();
+
+/* ---------------- particle title ---------------- */
+(()=>{
+const cv=document.getElementById('titleFx');if(!cv)return;const ctx=cv.getContext('2d');
+let W=0,H=0,pts=[],buckets=[],mx=-9999,my=-9999,raf=0,built=false;
+const R=Math.max(60,Math.min(110,innerWidth*.07)),R2=R*R;
+const lines=()=>W<640?['Fabio PROP','規則 stable 1.0','53 筆實單']:['Fabio PROP · 規則 stable 1.0','53 筆實單'];
+function build(){
+  const r=cv.getBoundingClientRect();if(!r.width)return;W=Math.round(r.width);H=Math.round(r.height);
+  const dpr=Math.min(devicePixelRatio||1,2);cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+  const L=lines(),off=document.createElement('canvas');off.width=W;off.height=H;const o=off.getContext('2d');
+  const font=f=>`900 ${f}px "Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif`;
+  let fs=H/(L.length*1.2);o.font=font(fs);const mw=Math.max(...L.map(t=>o.measureText(t).width));if(mw>W*.98)fs*=W*.98/mw;
+  o.font=font(fs);o.textBaseline='middle';o.fillStyle='#fff';const lh=fs*1.2,top=(H-lh*L.length)/2+lh/2;L.forEach((t,i)=>o.fillText(t,0,top+i*lh));
+  const img=o.getImageData(0,0,W,H).data,step=fs>60?3:2,old=pts;pts=[];
+  for(let y=0;y<H;y+=step)for(let x=0;x<W;x+=step)if(img[(y*W+x)*4+3]>120){const q=old[pts.length];
+    pts.push({hx:x,hy:y,x:q?q.x:(reduce?x:Math.random()*W),y:q?q.y:(reduce?y:H+Math.random()*H*.6),vx:0,vy:0,s:step*.82,b:Math.min(9,Math.floor(x/W*10))});}
+  buckets=Array.from({length:10},(_,i)=>{const t=i/9;return {c:`rgb(${Math.round(77+(154-77)*t)},${Math.round(225+(123-225)*t)},255)`,p:pts.filter(p=>p.b===i)};});
+  built=true;kick();
+}
+function kick(){if(!raf)raf=requestAnimationFrame(tick);}
+function tick(){
+  raf=0;let moving=0;
+  for(const p of pts){const dx=p.x-mx,dy=p.y-my,d2=dx*dx+dy*dy;
+    if(d2<R2){const d=Math.sqrt(d2)||1,f=(1-d/R)*7;p.vx+=dx/d*f+(Math.random()-.5)*1.5;p.vy+=dy/d*f+(Math.random()-.5)*1.5;}
+    p.vx=(p.vx+(p.hx-p.x)*.055)*.84;p.vy=(p.vy+(p.hy-p.y)*.055)*.84;p.x+=p.vx;p.y+=p.vy;
+    moving+=Math.abs(p.vx)+Math.abs(p.vy)+Math.abs(p.hx-p.x)*.1;}
+  ctx.clearRect(0,0,W,H);
+  for(const b of buckets){ctx.fillStyle=b.c;for(const p of b.p)ctx.fillRect(p.x,p.y,p.s,p.s);}
+  if(moving>pts.length*.02||mx>-999)kick();
+}
+addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(x>-R&&x<r.width+R&&y>-R&&y<r.height+R){mx=x;my=y;kick();}else if(mx>-999){mx=my=-9999;kick();}},{passive:true});
+addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  if(x>0&&x<r.width&&y>0&&y<r.height){for(const p of pts){const dx=p.x-x,dy=p.y-y,d=Math.hypot(dx,dy)||1;if(d<R*2.2){const f=(1-d/(R*2.2))*26;p.vx+=dx/d*f;p.vy+=dy/d*f;}}kick();}},{passive:true});
+cv.addEventListener('pointerleave',()=>{mx=my=-9999;kick();});
+let rt=0;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(build,150);});
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>setTimeout(build,60));
+})();
 
 addEventListener('resize',()=>LEVELS.forEach(l=>l.game.size()));
 sync();renderMap();
